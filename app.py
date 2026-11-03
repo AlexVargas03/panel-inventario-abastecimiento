@@ -23,6 +23,20 @@ def load_data():
     inv = pd.read_excel(inv_path, sheet_name="Inventarios") if inv_path.exists() else pd.DataFrame()
     return abc, inv
 
+def get_api_key() -> str:
+    """Lee la clave de los secretos de Streamlit o del entorno.
+
+    st.secrets lanza StreamlitSecretNotFoundError cuando no existe ningun
+    secrets.toml (caso habitual en local y en un despliegue sin secretos),
+    por eso el acceso va protegido.
+    """
+    try:
+        key = st.secrets.get("ANTHROPIC_API_KEY", "")
+    except Exception:
+        key = ""
+    return key or os.getenv("ANTHROPIC_API_KEY", "")
+
+
 abc, inv = load_data()
 
 st.title("📦 Panel de Inventario y Abastecimiento")
@@ -61,13 +75,13 @@ with tab1:
             fig = px.bar(inv, x="Almacen_Fisico", y=["Usado ALFA(m3)", "Usado TORU(m3)"],
                          title="Volumen utilizado por almacén", barmode="stack")
             fig.update_layout(xaxis_title="", yaxis_title="m³", legend_title="Empresa")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
         with right:
             fig = px.bar(inv, x="Almacen_Fisico", y="% Uso Total", title="Porcentaje de ocupación por almacén",
                          color="% Uso Total", color_continuous_scale="Blues")
             fig.update_layout(xaxis_title="", yaxis_title="%")
-            st.plotly_chart(fig, use_container_width=True)
-        st.dataframe(inv, use_container_width=True, hide_index=True)
+            st.plotly_chart(fig, width='stretch')
+        st.dataframe(inv, width='stretch', hide_index=True)
 
 with tab2:
     st.subheader("Clasificación ABC-XYZ")
@@ -90,22 +104,22 @@ with tab2:
         left,right = st.columns(2)
         with left:
             seg = f.groupby("segmento_abcxyz", dropna=False).size().reset_index(name="Productos")
-            st.plotly_chart(px.bar(seg, x="segmento_abcxyz", y="Productos", title="Productos por segmento ABC-XYZ"), use_container_width=True)
+            st.plotly_chart(px.bar(seg, x="segmento_abcxyz", y="Productos", title="Productos por segmento ABC-XYZ"), width='stretch')
         with right:
             cat = f.groupby("categoria", dropna=False)["Stock Valorizado"].sum().nlargest(12).reset_index()
-            st.plotly_chart(px.bar(cat, x="Stock Valorizado", y="categoria", orientation="h", title="Top 12 categorías por valorización"), use_container_width=True)
+            st.plotly_chart(px.bar(cat, x="Stock Valorizado", y="categoria", orientation="h", title="Top 12 categorías por valorización"), width='stretch')
         search = st.text_input("Buscar producto por código o nombre")
         if search:
             f = f[f["producto_id"].astype(str).str.contains(search, case=False, na=False) |
                   f["producto_nombre"].astype(str).str.contains(search, case=False, na=False)]
-        st.dataframe(f, use_container_width=True, hide_index=True)
+        st.dataframe(f, width='stretch', hide_index=True)
 
 with tab3:
     st.subheader("Asistente de inventarios")
     st.info("El chat se habilitará en la siguiente iteración con Claude API. Por ahora puedes explorar los datos en las pestañas anteriores.")
     st.markdown("**Ejemplos de preguntas que podrá responder:**")
     st.markdown("- ¿Qué almacenes tienen mayor porcentaje de ocupación?\n- ¿Qué segmentos ABC-XYZ concentran más stock valorizado?\n- ¿Qué categorías tienen mayor inventario?\n- ¿Cuánto espacio libre queda en los almacenes?")
-    api_key = st.secrets.get("ANTHROPIC_API_KEY", os.getenv("ANTHROPIC_API_KEY", ""))
+    api_key = get_api_key()
     if api_key:
         st.success("Se detectó una clave de Anthropic. El chat se integrará en la siguiente versión.")
     else:
