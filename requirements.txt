@@ -1,8 +1,7 @@
-# Rangos acotados: evita que un rebuild de Streamlit Cloud instale una version
-# mayor con cambios incompatibles. Validado con streamlit 1.66.1, pandas 3.1.0,
-# plotly 7.1.0, openpyxl 3.1.5.
-streamlit>=1.49,<2
-pandas>=2.2,<4
-openpyxl>=3.1,<4
-plotly>=5.24,<8
-anthropic>=0.40,<3
+streamlit>=1.50
+pandas>=2.2
+numpy>=1.26
+plotly>=5.24
+openpyxl>=3.1
+duckdb>=1.1
+anthropic>=0.40
