@@ -6,7 +6,6 @@ traducida a pandas. Cada función recibe DataFrames y devuelve DataFrames o dict
 from __future__ import annotations
 
 import calendar
-import io
 import json
 import math
 import re

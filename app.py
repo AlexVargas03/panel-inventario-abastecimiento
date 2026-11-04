@@ -1,13 +1,13 @@
-"""Panel de Inventario y Abastecimiento — versión Streamlit.
+"""Panel de Inventario y Abastecimiento con Asistente IA — Streamlit.
 
 Ejecutar en local:   streamlit run app.py
-Streamlit Cloud:     subir esta carpeta a un repositorio de GitHub (privado) y elegir app.py.
+Streamlit Cloud:     subir esta carpeta a un repositorio privado de GitHub, elegir app.py y
+                     pegar ANTHROPIC_API_KEY en Settings → Secrets (una sola vez).
 """
 from __future__ import annotations
 
 import os
 
-import numpy as np
 import streamlit as st
 
 import agent
@@ -16,11 +16,9 @@ import panel_component
 
 st.set_page_config(page_title="Panel de Inventario y Abastecimiento", page_icon="📦", layout="wide", initial_sidebar_state="collapsed")
 
-COL_A, COL_B, COL_C, COL_T = "#2E6FD8", "#E8A33D", "#8A8F98", "#1B9E77"
-MES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
-
 
 def secreto(nombre: str, defecto=None):
+    """Lee un valor de .streamlit/secrets.toml (o Secrets de Streamlit Cloud) o de las variables de entorno."""
     try:
         if nombre in st.secrets:
             return st.secrets[nombre]
@@ -30,7 +28,7 @@ def secreto(nombre: str, defecto=None):
 
 
 # ----------------------------------------------------------------------------
-# Acceso (opcional): define APP_PASSWORD en los secrets para pedir contraseña
+# Acceso (opcional): define APP_PASSWORD en los Secrets para pedir contraseña
 # ----------------------------------------------------------------------------
 clave_app = secreto("APP_PASSWORD")
 if clave_app and not st.session_state.get("acceso_ok"):
@@ -43,40 +41,8 @@ if clave_app and not st.session_state.get("acceso_ok"):
         st.error("Contraseña incorrecta.")
     st.stop()
 
-
 # ----------------------------------------------------------------------------
-# Formato
-# ----------------------------------------------------------------------------
-def money(v, dec=0):
-    if v is None or (isinstance(v, float) and np.isnan(v)):
-        return "—"
-    return f"S/ {v:,.{dec}f}"
-
-
-def moneyk(v):
-    if v is None or (isinstance(v, float) and np.isnan(v)):
-        return "—"
-    return f"S/ {v / 1e6:,.2f} M" if abs(v) >= 1e6 else f"S/ {v / 1e3:,.0f} mil" if abs(v) >= 1e3 else f"S/ {v:,.0f}"
-
-
-def pct(v, dec=1):
-    if v is None or (isinstance(v, float) and np.isnan(v)):
-        return "—"
-    return f"{v:.{dec}%}"
-
-
-def num(v, dec=0):
-    if v is None or (isinstance(v, float) and np.isnan(v)):
-        return "—"
-    return f"{v:,.{dec}f}"
-
-
-def mes_txt(m: str) -> str:
-    return f"{MES[int(m[5:7]) - 1]} {m[:4]}"
-
-
-# ----------------------------------------------------------------------------
-# Datos: archivos incluidos en /data, reemplazables desde la barra lateral
+# Datos: archivos de /data, reemplazables desde la barra lateral
 # ----------------------------------------------------------------------------
 @st.cache_data(show_spinner="Cargando archivos…")
 def datos_por_defecto():
@@ -86,6 +52,17 @@ def datos_por_defecto():
 @st.cache_data(show_spinner="Calculando indicadores…")
 def calcular(ds: dict):
     return calc.calcular_todo(ds)
+
+
+@st.cache_data(show_spinner="Preparando el panel…")
+def datos_panel(ds: dict):
+    return panel_component.preparar_datos(ds)
+
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def insights_ia_cache(version: str, modelo: str, _cliente, _R, _base):
+    """Insights de Claude: se generan una vez por versión de datos y se reutilizan 6 horas para todos."""
+    return agent.insights_ia(_cliente, modelo, _R, _base)
 
 
 ETIQUETAS = {
@@ -100,7 +77,6 @@ ETIQUETAS = {
 
 ds = dict(datos_por_defecto())
 subidos = st.session_state.setdefault("subidos", {})
-
 with st.sidebar:
     st.header("📁 Archivos")
     st.caption("La app usa los archivos de la carpeta data/. Puedes reemplazar cualquiera por uno nuevo (CSV o Excel) solo para esta sesión; para dejarlo fijo, reemplázalo en data/ del repositorio.")
@@ -118,96 +94,103 @@ with st.sidebar:
     if subidos:
         st.success("Usando archivo nuevo en: " + ", ".join(subidos))
     st.caption("Filas cargadas: " + " · ".join(f"{c} {len(subidos.get(c, ds[c])):,}" for c in ETIQUETAS))
-
 ds.update(subidos)
+
 try:
     R = calcular(ds)
+    archivo, version = datos_panel(ds)
 except Exception as e:
     st.error(f"Los archivos no tienen el formato esperado: {e}")
     st.stop()
 
 # ----------------------------------------------------------------------------
+# Asistente IA: la clave sale de los Secrets, nunca de la interfaz
+# ----------------------------------------------------------------------------
+api_key = secreto("ANTHROPIC_API_KEY")
+modelo = secreto("ANTHROPIC_MODEL", agent.MODELO_POR_DEFECTO)
+cliente = None
+if api_key:
+    import anthropic
 
+    cliente = anthropic.Anthropic(api_key=api_key)
+
+ss = st.session_state
+ss.setdefault("chat_api", [])       # historial en formato de la API de Anthropic (memoria de la conversación)
+ss.setdefault("chat_vis", [])       # lo que se muestra en el panel (texto, tablas, gráficos, acciones)
+ss.setdefault("procesados", set())  # eventos del panel ya atendidos
+ss.setdefault("accion", None)       # última acción del asistente sobre el dashboard
+ss.setdefault("respondido", None)
+ss.setdefault("insights", None)
+if ss.get("sesion_version") != version:
+    ss["sesion"] = agent.Sesion(ds, R)
+    ss["sesion_version"] = version
+    ss["insights"] = {"items": agent.insights_reglas(R), "fuente": "reglas"}
+    ss["insights_ia_ok"] = False
+
+
+def compactar(hist: list, max_turnos: int = 12) -> list:
+    """Limita la memoria: últimas preguntas completas y resultados de herramientas antiguos recortados."""
+    inicios = [i for i, m in enumerate(hist) if m["role"] == "user" and isinstance(m["content"], str)]
+    if len(inicios) > max_turnos:
+        hist = hist[inicios[-max_turnos]:]
+        inicios = [i for i, m in enumerate(hist) if m["role"] == "user" and isinstance(m["content"], str)]
+    ultimo = inicios[-1] if inicios else 0
+    for m in hist[:ultimo]:
+        if m["role"] == "user" and isinstance(m["content"], list):
+            for b in m["content"]:
+                if b.get("type") == "tool_result" and isinstance(b.get("content"), str) and len(b["content"]) > 1200:
+                    b["content"] = b["content"][:1200] + "\n…(recortado)"
+    return hist
+
+
+# ----------------------------------------------------------------------------
+# Página: el dashboard original + panel del asistente
+# ----------------------------------------------------------------------------
 st.markdown("""<style>
-.block-container{padding-top:2.2rem;padding-left:1rem;padding-right:1rem;max-width:1240px}
-iframe[title="panel_component.panel_original"]{border:0}
+[data-testid="stHeader"]{background:transparent;height:2.4rem}
+.block-container{padding:2.4rem .5rem 0 .5rem;max-width:100%}
+[data-testid="stMainBlockContainer"]{padding-bottom:0}
+iframe[title="panel_component.panel_original"]{border:0;display:block}
+footer{display:none}
 </style>""", unsafe_allow_html=True)
 
-tab_panel, tab_ia = st.tabs(["📊 Panel", "🤖 Asistente IA"])
+evento = panel_component.mostrar(
+    archivo, version,
+    chat=ss["chat_vis"], insights=ss["insights"], ia_ok=bool(cliente), modelo=modelo if cliente else "",
+    accion=ss["accion"], respondido=ss["respondido"], reiniciado=ss.pop("reiniciado", False),
+    pedir_insights=bool(cliente) and not ss.get("insights_ia_ok"),
+)
 
-
-@st.cache_data(show_spinner="Preparando el panel…")
-def tablas_panel(ds: dict):
-    return panel_component.preparar_tablas(ds)
-
-
-# ============================================================================
-# Panel: la página original del dashboard (mismo diseño), con los datos de data/
-# ============================================================================
-with tab_panel:
-    tablas, version = tablas_panel(ds)
-    panel_component.mostrar(tablas, version)
-
-# ============================================================================
-# Asistente IA (Anthropic Claude)
-# ============================================================================
-with tab_ia:
-    st.subheader("🤖 Asistente de inventario")
-    api_key = secreto("ANTHROPIC_API_KEY") or st.session_state.get("api_key_manual")
-    modelo = secreto("ANTHROPIC_MODEL", agent.MODELO_POR_DEFECTO)
-    if not api_key:
-        st.warning("Falta la clave de la API de Anthropic. En Streamlit Cloud ponla en **Settings → Secrets** como `ANTHROPIC_API_KEY = \"sk-ant-...\"`. "
-                   "Para probar ahora puedes pegarla aquí (solo dura esta sesión).")
-        k_in = st.text_input("ANTHROPIC_API_KEY", type="password")
-        if k_in:
-            st.session_state["api_key_manual"] = k_in
-            st.rerun()
-    else:
-        import anthropic
-
-        cliente = anthropic.Anthropic(api_key=api_key)
-        st.caption(f"Responde con los datos cargados en el panel · modelo {modelo}")
-        hist = st.session_state.setdefault("chat_api", [])
-        vis = st.session_state.setdefault("chat_vis", [])
-        if st.button("Nueva conversación", disabled=not vis):
-            hist.clear(), vis.clear()
-            st.rerun()
-        ejemplos = ["¿Qué 10 proveedores tienen más días de inventario y cuánto valor tienen?",
-                    "¿Cuánto inventario obsoleto hay por criterio y qué proveedores concentran más?",
-                    "Si hago 15 % de descuento a los productos CZ de L'OREAL, ¿cuánto más debo vender?",
-                    "¿Qué almacén está más lleno y cuántos m³ libres quedan en total?"]
-        if not vis:
-            cols = st.columns(2)
-            for i, e in enumerate(ejemplos):
-                if cols[i % 2].button(e, key=f"ej{i}", width="stretch"):
-                    st.session_state["pregunta"] = e
-                    st.rerun()
-        for m in vis:
-            with st.chat_message(m["role"]):
-                st.markdown(m["text"])
-                for t in m.get("tools", []):
-                    with st.expander(f"🔧 {t['name']}"):
-                        st.code(t["input"].get("sql") or str(t["input"]), language="sql" if "sql" in t["input"] else None)
-                        st.text(t["output"][:3000])
-        pregunta = st.chat_input("Pregunta sobre inventario, ventas, almacenes o compras…") or st.session_state.pop("pregunta", None)
-        if pregunta:
-            with st.chat_message("user"):
-                st.markdown(pregunta)
-            vis.append({"role": "user", "text": pregunta})
-            hist.append({"role": "user", "content": pregunta})
-            with st.chat_message("assistant"):
-                usadas = []
-                with st.status("Consultando los datos…", expanded=False) as estado:
-                    def on_tool(n, i, o):
-                        usadas.append({"name": n, "input": i, "output": o})
-                        estado.write(f"🔧 {n}: `{(i.get('sql') or str(i))[:200]}`")
-                    try:
-                        texto, nuevo = agent.responder(cliente, modelo, hist, ds, R, on_tool)
-                        hist[:] = nuevo
-                        estado.update(label=f"Listo · {len(usadas)} consulta(s)", state="complete")
-                    except anthropic.APIError as e:
-                        texto = f"Error de la API de Anthropic: {e}"
-                        hist.pop()
-                        estado.update(label="Error", state="error")
-                st.markdown(texto)
-            vis.append({"role": "assistant", "text": texto, "tools": usadas})
+if evento and evento.get("id") not in ss["procesados"]:
+    ss["procesados"].add(evento["id"])
+    tipo = evento.get("tipo")
+    if tipo == "preguntar" and cliente and str(evento.get("texto", "")).strip():
+        texto = str(evento["texto"]).strip()[:4000]
+        ss["chat_vis"].append({"id": evento["id"] + "-u", "role": "user", "texto": texto})
+        ss["chat_api"].append({"role": "user", "content": texto})
+        try:
+            res, nuevo = agent.responder(cliente, modelo, ss["chat_api"], ss["sesion"], evento.get("contexto"))
+            ss["chat_api"] = compactar(nuevo)
+            acc = {k: v for k, v in res["accion"].items() if k != "descripcion"}
+            ss["chat_vis"].append({"id": evento["id"], "role": "assistant", "texto": res["texto"], "bloques": res["bloques"],
+                                   "accion_desc": res["accion"].get("descripcion", []), "consultas": res["consultas"]})
+            if acc:
+                ss["accion"] = {"id": evento["id"], **acc}
+        except Exception as e:  # error de la API (clave, modelo, saldo, red…)
+            ss["chat_api"].pop()
+            ss["chat_vis"].append({"id": evento["id"], "role": "assistant", "error": True,
+                                   "texto": f"No pude responder: **{type(e).__name__}**: {e}"})
+        ss["respondido"] = evento["id"]
+        st.rerun()
+    elif tipo == "insights" and cliente and not ss.get("insights_ia_ok"):
+        ss["insights_ia_ok"] = True
+        try:
+            items = insights_ia_cache(version, modelo, cliente, R, ss["insights"]["items"])
+            ss["insights"] = {"items": items, "fuente": "ia"}
+        except Exception as e:
+            print("Insights de IA:", e)
+        st.rerun()
+    elif tipo == "reiniciar":
+        ss["chat_api"], ss["chat_vis"], ss["accion"], ss["respondido"] = [], [], None, None
+        ss["reiniciado"] = True
+        st.rerun()

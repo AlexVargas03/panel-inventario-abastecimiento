@@ -1,10 +1,10 @@
 /* Reemplazo del entorno del Claude Dashboard (window.dash) para usar pagina.html dentro de Streamlit.
- * Streamlit envía los datos como argumentos del componente; aquí se exponen con la misma API
- * que usa la página: dash.calc, dash.loader, dash.data, dash.onData, dash.params, dash.setParams,
- * dash.resetParams, dash.setLink, dash.refresh y dash.colors. */
+ * Python escribe los datos en un archivo JSON de esta carpeta y manda su dirección como argumento;
+ * aquí se cargan y se exponen con la misma API que usa la página: dash.calc, dash.loader, dash.data,
+ * dash.onData, dash.params, dash.setParams, dash.resetParams, dash.setLink, dash.refresh y dash.colors. */
 (function () {
   'use strict';
-  var calcs = {}, loaders = {}, callbacks = [], cache = {}, raw = null, params = {}, version = null;
+  var calcs = {}, loaders = {}, callbacks = [], cache = {}, raw = null, params = {}, version = null, cargando = null;
 
   function compute(id) {
     if (cache[id]) return cache[id];
@@ -48,49 +48,78 @@
     resetParams: function () { params = {}; fire(); },
     setLink: function () {},
     refresh: function () { fire(); },
-    _setData: function (d, v) {
-      if (v !== undefined && v === version) return;
-      version = v; raw = d; cache = {}; fire();
-    }
+    _setData: function (d, v) { version = v; raw = d; cache = {}; fire(); }
   };
+
+  function aFilas(tables) {
+    var out = {};
+    Object.keys(tables || {}).forEach(function (k) {
+      var t = tables[k];
+      out[k] = t.rows.map(function (r) { var o = {}; t.cols.forEach(function (c, i) { o[c] = r[i]; }); return o; });
+    });
+    return out;
+  }
 
   /* Descargas (botón "Descargar CSV" de la página) */
   window.claude = {
     use: function (name) {
       if (name !== 'downloads') return Promise.reject({ code: 'unavailable' });
-      return Promise.resolve({
-        save: function (o) {
-          var blob = new Blob([o.data], { type: 'text/csv;charset=utf-8' });
-          var a = document.createElement('a');
-          a.href = URL.createObjectURL(blob); a.download = o.filename || 'datos.csv';
-          document.body.appendChild(a); a.click();
-          setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-          return Promise.resolve();
-        }
-      });
+      return Promise.resolve({ save: function (o) { window.descargar(o.filename || 'datos.csv', o.data); return Promise.resolve(); } });
     }
+  };
+  window.descargar = function (nombre, texto) {
+    var blob = new Blob([texto], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = nombre;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   };
 
   /* Protocolo de componentes de Streamlit (sin librerías) */
   function send(type, extra) {
     window.parent.postMessage(Object.assign({ isStreamlitMessage: true, type: type }, extra || {}), '*');
   }
+  window.stSend = send;
   var lastH = 0;
+  function alto() {
+    if (document.body.classList.contains('ia-on')) {
+      var h = 860;
+      try {
+        var top = window.frameElement ? Math.max(0, window.frameElement.getBoundingClientRect().top) : 0;
+        if (!window.__iaTop) window.__iaTop = Math.min(top, 120) || 40;
+        h = window.parent.innerHeight - window.__iaTop - 6;
+      } catch (e) { /* sin acceso al padre */ }
+      return Math.max(560, h);
+    }
+    return Math.ceil(document.body.getBoundingClientRect().height) + 4;
+  }
   function reportHeight() {
-    var h = Math.ceil(document.body.getBoundingClientRect().height) + 4;
+    var h = alto();
     if (Math.abs(h - lastH) > 1) { lastH = h; send('streamlit:setFrameHeight', { height: h }); }
   }
+  window.reportHeight = reportHeight;
+  try { window.parent.addEventListener('resize', reportHeight); } catch (e) { /* nada */ }
+
   window.addEventListener('message', function (ev) {
     var m = ev.data;
     if (!m || m.type !== 'streamlit:render' || !m.args) return;
     var a = m.args;
-    if (a.version === version) { reportHeight(); return; }
-    var tables = a.tables || {}, out = {};
-    Object.keys(tables).forEach(function (k) {
-      var t = tables[k];
-      out[k] = t.rows.map(function (r) { var o = {}; t.cols.forEach(function (c, i) { o[c] = r[i]; }); return o; });
-    });
-    window.dash._setData(out, a.version);
+    if (a.version && a.version !== version && a.version !== cargando) {
+      cargando = a.version;
+      if (a.data_url) {
+        fetch(a.data_url).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+          .then(function (t) { window.dash._setData(aFilas(t), a.version); })
+          .catch(function (e) {
+            cargando = null;
+            var box = document.getElementById('dash-error');
+            if (box) { box.hidden = false; box.textContent = 'No pude cargar los datos del panel: ' + e.message; }
+          });
+      } else if (a.tables) {
+        window.dash._setData(aFilas(a.tables), a.version);
+      }
+    }
+    if (window.iaRender) { try { window.iaRender(a); } catch (e) { console.error(e); } }
+    reportHeight();
   });
   window.addEventListener('load', function () {
     send('streamlit:componentReady', { apiVersion: 1 });
