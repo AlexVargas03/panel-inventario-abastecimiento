@@ -67,8 +67,8 @@
       return Promise.resolve({ save: function (o) { window.descargar(o.filename || 'datos.csv', o.data); return Promise.resolve(); } });
     }
   };
-  window.descargar = function (nombre, texto) {
-    var blob = new Blob([texto], { type: 'text/csv;charset=utf-8' });
+  window.descargar = function (nombre, texto, tipo) {
+    var blob = new Blob([texto], { type: tipo || 'text/csv;charset=utf-8' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = nombre;
     document.body.appendChild(a); a.click();

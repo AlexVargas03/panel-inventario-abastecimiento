@@ -6,55 +6,69 @@
   'use strict';
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
-  var st = { chat: [], busy: false, pending: null, iaOk: false, insights: null, insPedido: false, vistoKey: '', acciones: {}, abierto: true, error: null };
+  var st = { chat: [], busy: false, pending: null, iaOk: false, insights: null, insPedido: false, vistoKey: '', acciones: {}, abierto: true, error: null, animados: {} };
   try { st.acciones = JSON.parse(sessionStorage.getItem('ia_acc') || '{}'); } catch (e) { st.acciones = {}; }
   try { st.abierto = localStorage.getItem('ia_open') !== '0'; } catch (e) { /* nada */ }
 
-  var RAPIDAS = [
-    ['Top proveedores', 'Muéstrame el top 10 de proveedores por venta de los últimos 3 meses con su margen, y llévame a esa vista en el dashboard.'],
-    ['Margen por mes', 'Grafica la venta y el margen % por mes y dime qué mes fue el peor y por qué.'],
-    ['Obsoleto', '¿Qué proveedores concentran el inventario obsoleto? Muéstrame la tabla y filtra el dashboard en obsoletos.'],
-    ['Almacenes', '¿Qué almacén está más lleno? ¿Cuánto espacio libre queda y cuánto ocuparía liberar el obsoleto?']
-  ];
+  /* Ideas puntuales de la bienvenida: [icono, título corto, pista, pregunta real] */
+  var IDEAS;
   var ICO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 15l.9 2.1 2.1.9-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg>';
+
+  /* Iconos de trazo: heredan el color del contenedor y escalan sin pixelarse (los emojis cambian según el sistema) */
+  function svg(d) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + d + '</svg>';
+  }
+  var IC = {
+    trend: svg('<polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/>'),
+    barras: svg('<line x1="5" y1="21" x2="5" y2="10"/><line x1="12" y1="21" x2="12" y2="4"/><line x1="19" y1="21" x2="19" y2="14"/>'),
+    caja: svg('<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>'),
+    almacen: svg('<path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-7h6v7"/>'),
+    tabla: svg('<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9.5" x2="21" y2="9.5"/><line x1="9.5" y1="9.5" x2="9.5" y2="20"/>'),
+    grafico: svg('<path d="M4 20V5"/><path d="M4 20h16"/><polyline points="7.5 15 11 11 14 14 19 8"/>'),
+    nuevo: svg('<path d="M3 10a9 9 0 1 1 2.6 6.4"/><polyline points="3 4 3 10 9 10"/>'),
+    cerrar: svg('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>'),
+    ok: svg('<polyline points="20 6 9 17 4 12"/>'),
+    enviar: svg('<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>'),
+    descarga: svg('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>')
+  };
+
+  IDEAS = [
+    [IC.trend, 'Proveedores', 'Top 10 por venta y margen', 'Muéstrame el top 10 de proveedores por venta de los últimos 3 meses con su margen, y llévame a esa vista en el dashboard.'],
+    [IC.barras, 'Margen', 'Evolución mes a mes', 'Grafica la venta y el margen % por mes y dime qué mes fue el peor y por qué.'],
+    [IC.caja, 'Obsoleto', 'Quién lo concentra', '¿Qué proveedores concentran el inventario obsoleto? Muéstrame la tabla y filtra el dashboard en obsoletos.'],
+    [IC.almacen, 'Almacenes', 'Ocupación y espacio libre', '¿Qué almacén está más lleno? ¿Cuánto espacio libre queda y cuánto ocuparía liberar el obsoleto?']
+  ];
 
   /* ---------- Estructura ---------- */
   var panel = $('#ia-panel');
   panel.innerHTML =
-    '<div class="ia-hd"><div class="ia-logo">' + ICO + '</div>' +
-    '<div class="ia-tt"><b>Asistente IA <span class="ia-badge">Claude</span></b><small>Conectado a los datos del panel</small></div>' +
-    '<button class="ia-ico" id="ia-new" title="Nueva conversación">⟲</button><button class="ia-ico" id="ia-x" title="Cerrar panel">✕</button></div>' +
+    '<div class="ia-hd"><b class="ia-tt">Asistente<span class="ia-dot" id="ia-estado"></span></b>' +
+    '<button class="ia-ico" id="ia-new" type="button" title="Nueva conversación" aria-label="Nueva conversación">' + IC.nuevo + '</button></div>' +
     '<p class="ia-warn" id="ia-warn" hidden></p>' +
     '<div id="ia-msgs" aria-live="polite"></div>' +
-    '<div class="ia-ft"><div class="ia-quick" id="ia-quick"><span>Preguntas rápidas:</span></div>' +
+    '<div class="ia-ft"><div class="ia-quick" id="ia-quick"></div>' +
     '<div class="ia-in"><textarea id="ia-txt" rows="1" placeholder="Pregunta por ventas, inventario, almacenes…" aria-label="Pregunta al asistente"></textarea>' +
-    '<button class="ia-send" id="ia-send" title="Enviar" aria-label="Enviar">↑</button></div>' +
+    '<button class="ia-send" id="ia-send" type="button" title="Enviar" aria-label="Enviar">' + IC.enviar + '</button></div>' +
     '<div class="ia-meta"><span id="ia-model">Claude</span><span id="ia-ctx"></span></div></div>';
-  RAPIDAS.forEach(function (q) {
-    var b = document.createElement('button'); b.className = 'ia-chip'; b.textContent = q[0]; b.title = q[1];
-    b.onclick = function () { preguntar(q[1]); }; $('#ia-quick').appendChild(b);
-  });
   var msgs = $('#ia-msgs'), txt = $('#ia-txt'), btn = $('#ia-send');
   var tip = document.createElement('div'); tip.className = 'ia-tip'; tip.hidden = true; document.body.appendChild(tip);
 
   function abrir(v) {
     st.abierto = v; document.body.classList.toggle('ia-closed', !v);
-    $('#ia-handle').textContent = v ? '»' : '«';
+    var h = $('#ia-handle');
+    // Botón circular: dos iconos superpuestos que cruzan y giran (el CSS decide cuál se ve)
+    if (!$('.ia-fab-i', h)) h.innerHTML = '<span class="ia-fab-i ia-fab-a">' + ICO + '</span><span class="ia-fab-i ia-fab-b">' + IC.cerrar + '</span>';
+    h.setAttribute('aria-expanded', v ? 'true' : 'false');
+    h.setAttribute('aria-label', v ? 'Cerrar el asistente' : 'Abrir el asistente');
+    h.title = v ? 'Cerrar el asistente' : 'Abrir el asistente';
     try { localStorage.setItem('ia_open', v ? '1' : '0'); } catch (e) { /* nada */ }
-    setTimeout(function () { window.dispatchEvent(new Event('resize')); try { dash.refresh(); } catch (e) { /* nada */ } }, 280);
+    // al terminar la transición el dashboard ya tiene su ancho final: se redibujan los gráficos
+    setTimeout(function () { window.dispatchEvent(new Event('resize')); try { dash.refresh(); } catch (e) { /* nada */ } }, 460);
   }
   $('#ia-handle').onclick = function () { abrir(!st.abierto); };
-  $('#ia-x').onclick = function () { abrir(false); };
   $('#ia-new').onclick = function () { if (!st.busy) { window.stSend('streamlit:setComponentValue', { value: { id: nuevoId(), tipo: 'reiniciar' }, dataType: 'json' }); } };
   abrir(st.abierto);
-
-  /* Botón en la cabecera roja del dashboard */
-  var hd = $('.ax-hd-top') || $('.ax-hd');
-  if (hd) {
-    var hb = document.createElement('button'); hb.className = 'ia-hd-btn'; hb.innerHTML = ICO.replace('<svg', '<svg width="16" height="16"') + 'Asistente IA';
-    hb.onclick = function () { abrir(!st.abierto); if (st.abierto) txt.focus(); };
-    hd.appendChild(hb);
-  }
+  /* El panel se abre y se cierra solo con el botón circular: no se añade nada a la cabecera del dashboard */
 
   txt.addEventListener('input', function () { txt.style.height = 'auto'; txt.style.height = Math.min(120, txt.scrollHeight) + 'px'; });
   txt.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); preguntar(txt.value); } });
@@ -145,20 +159,61 @@
     var q = function (v) { var s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     return '﻿' + [b.cols.map(q).join(',')].concat(b.rows.map(function (r) { return r.map(q).join(','); })).join('\r\n');
   }
+  function xmlEsc(v) {
+    return String(v == null ? '' : v).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+  /* Hoja de Excel en SpreadsheetML: sin librerias, y los numeros llegan como numeros (el CSV los manda como texto) */
+  function tablaXls(b) {
+    var filas = b.rows.map(function (r) {
+      return '<Row>' + r.map(function (v) {
+        return typeof v === 'number' && isFinite(v)
+          ? '<Cell><Data ss:Type="Number">' + v + '</Data></Cell>'
+          : '<Cell><Data ss:Type="String">' + xmlEsc(v) + '</Data></Cell>';
+      }).join('') + '</Row>';
+    }).join('');
+    var cab = '<Row>' + b.cols.map(function (c) {
+      return '<Cell ss:StyleID="h"><Data ss:Type="String">' + xmlEsc(c.replace(/_/g, ' ')) + '</Data></Cell>';
+    }).join('') + '</Row>';
+    var hoja = (b.titulo || 'Datos').replace(/[\\\/\?\*\[\]:]/g, ' ').slice(0, 31) || 'Datos';
+    return '<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>' +
+      '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"' +
+      ' xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"' +
+      ' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">' +
+      '<Styles><Style ss:ID="h"><Font ss:Bold="1" ss:Color="#FFFFFF"/>' +
+      '<Interior ss:Color="#B3151F" ss:Pattern="Solid"/></Style></Styles>' +
+      '<Worksheet ss:Name="' + xmlEsc(hoja) + '"><Table>' + cab + filas + '</Table></Worksheet></Workbook>';
+  }
+
   function bloqueTabla(b) {
     var el = document.createElement('div'); el.className = 'ia-blk';
     var num = b.cols.map(function (c, j) { return b.rows.some(function (r) { return typeof r[j] === 'number'; }); });
-    var head = '<div class="ia-blk-h"><span>▦ ' + esc(b.titulo) + '</span><button type="button">CSV</button></div>';
+    var head = '<div class="ia-blk-h">' + IC.tabla + '<span>' + esc(b.titulo) + '</span></div>';
     var th = b.cols.map(function (c, j) { return '<th class="' + (num[j] ? 'n' : '') + '">' + esc(c.replace(/_/g, ' ')) + '</th>'; }).join('');
+    /* La primera columna numerica lleva barra de magnitud detras del numero: se escanea sin leer cifra a cifra */
+    var jb = num.indexOf(true), tope = 0;
+    if (jb >= 0) b.rows.forEach(function (r) { var v = Math.abs(+r[jb] || 0); if (v > tope) tope = v; });
     var tb = b.rows.map(function (r) {
       return '<tr>' + r.map(function (v, j) {
         var f = (b.fmts || {})[b.cols[j]] || 'auto';
-        return '<td class="' + (num[j] ? 'n' : '') + (typeof v === 'number' && v < 0 ? ' neg' : '') + '" title="' + esc(v) + '">' + esc(fmt(v, f)) + '</td>';
+        var cls = (num[j] ? 'n' : '') + (typeof v === 'number' && v < 0 ? ' neg' : '') + (j === 0 ? ' k' : '');
+        var txt = esc(fmt(v, f));
+        if (j === jb && tope > 0 && typeof v === 'number') {
+          var pc = Math.max(2, Math.round(Math.abs(v) / tope * 100));
+          return '<td class="' + cls + ' bar" style="--p:' + pc + '%" title="' + esc(v) + '"><span>' + txt + '</span></td>';
+        }
+        return '<td class="' + cls + '" title="' + esc(v) + '">' + txt + '</td>';
       }).join('') + '</tr>';
     }).join('');
     var nota = (b.total_filas > b.rows.length ? b.rows.length + ' de ' + d3.format(',')(b.total_filas) + ' filas' : b.rows.length + ' filas') + (b.nota ? ' · ' + b.nota : '');
-    el.innerHTML = head + '<div class="ia-tw"><table class="ia-t"><thead><tr>' + th + '</tr></thead><tbody>' + tb + '</tbody></table></div><div class="ia-nota">' + esc(nota) + '</div>';
-    $('button', el).onclick = function () { window.descargar((b.titulo || 'tabla').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') + '.csv', tablaCsv(b)); };
+    el.innerHTML = head + '<div class="ia-tw"><table class="ia-t"><thead><tr>' + th + '</tr></thead><tbody>' + tb + '</tbody></table></div>' +
+      '<div class="ia-pie"><span class="ia-nota">' + esc(nota) + '</span>' +
+      '<button type="button" class="ia-exp" title="Descargar en Excel">' + IC.descarga + '<span>Excel</span></button></div>';
+    $('.ia-exp', el).onclick = function () {
+      var nombre = (b.titulo || 'tabla').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_');
+      window.descargar(nombre + '.xls', tablaXls(b), 'application/vnd.ms-excel;charset=utf-8');
+    };
     return el;
   }
 
@@ -167,10 +222,24 @@
   function hideTip() { tip.hidden = true; }
   function bloqueGrafico(b, enDash) {
     var el = document.createElement('div'); el.className = 'ia-blk';
-    el.innerHTML = '<div class="ia-blk-h"><span>📈 ' + esc(b.titulo) + '</span></div><div class="ia-ch"></div><div class="ia-leg"></div>';
+    el.innerHTML = '<div class="ia-blk-h">' + IC.grafico + '<span>' + esc(b.titulo) + '</span></div><div class="ia-ch"></div><div class="ia-leg"></div>';
     requestAnimationFrame(function () { try { dibujar($('.ia-ch', el), $('.ia-leg', el), b, enDash); } catch (e) { console.error(e); $('.ia-ch', el).textContent = 'No pude dibujar el gráfico.'; } });
     return el;
   }
+  /* Extremo del dato redondeado (4px) y escuadra en la linea base; nunca las cuatro esquinas */
+  function pathCol(x, y0, y1, w, r) {           // columna vertical
+    var h = Math.abs(y1 - y0); if (h <= 0.5 || w <= 0) return '';
+    r = Math.min(r, w / 2, h); var up = y1 <= y0, k = up ? r : -r;
+    return 'M' + x + ',' + y0 + 'V' + (y1 + k) + 'q0,' + (-k) + ' ' + r + ',' + (-k) +
+           'h' + (w - 2 * r) + 'q' + r + ',0 ' + r + ',' + k + 'V' + y0 + 'Z';
+  }
+  function pathBar(x0, x1, y, h, r) {           // barra horizontal
+    var w = Math.abs(x1 - x0); if (w <= 0.5 || h <= 0) return '';
+    r = Math.min(r, h / 2, w); var right = x1 >= x0, k = right ? r : -r;
+    return 'M' + x0 + ',' + y + 'H' + (x1 - k) + 'q' + k + ',0 ' + k + ',' + r +
+           'v' + (h - 2 * r) + 'q0,' + r + ' ' + (-k) + ',' + r + 'H' + x0 + 'Z';
+  }
+
   function dibujar(box, leg, b, enDash) {
     var W = Math.max(260, box.clientWidth || 340), H = enDash ? 280 : 220, f = b.formato || 'num', C = dash.colors;
     var svg = d3.select(box).append('svg').attr('viewBox', '0 0 ' + W + ' ' + H);
@@ -232,11 +301,14 @@
       var yb = d3.scaleBand().domain(labels).range([mh.t, H - mh.b]).padding(0.2), yi = d3.scaleBand().domain(series.map(function (s, i) { return i; })).range([0, yb.bandwidth()]).padding(0.05);
       var xb = d3.scaleLinear().domain([lo, hi]).nice().range([mh.l, W - mh.r]);
       series.forEach(function (s, k) {
-        svg.selectAll('.b' + k).data(s.values).join('rect').attr('y', function (v, i) { return yb(labels[i]) + yi(k); }).attr('height', yi.bandwidth())
-          .attr('x', function (v) { return xb(Math.min(0, v)); }).attr('width', function (v) { return Math.abs(xb(v) - xb(0)); }).attr('rx', 2)
-          .attr('fill', function (v) { return v < 0 ? '#c8202c' : C[k % C.length]; }).on('mousemove', function (e, v) { var i = s.values.indexOf(v); showTip(e, esc(labels[i]) + '<br>' + esc(s.name) + ': ' + fmt(v, f)); }).on('mouseleave', hideTip);
-        if (series.length === 1) svg.selectAll('.t' + k).data(s.values).join('text').attr('y', function (v, i) { return yb(labels[i]) + yb.bandwidth() / 2 + 3; })
-          .attr('x', function (v) { return xb(Math.max(0, v)) + 4; }).text(function (v) { return corto(v, f); });
+        var gh = Math.min(24, yi.bandwidth()), oy = (yi.bandwidth() - gh) / 2;
+        svg.selectAll('.b' + k).data(s.values).join('path').attr('class', 'creceh')
+          .style('animation-delay', function (v, i) { return (i * 45) + 'ms'; })
+          .attr('d', function (v, i) { return pathBar(xb(0), xb(v), yb(labels[i]) + yi(k) + oy, gh, 4); })
+          .attr('fill', function (v) { return v < 0 ? '#c8202c' : C[k % C.length]; })
+          .on('mousemove', function (e, v) { var i = s.values.indexOf(v); showTip(e, esc(labels[i]) + '<br>' + esc(s.name) + ': ' + fmt(v, f)); }).on('mouseleave', hideTip);
+        if (series.length === 1) svg.selectAll('.t' + k).data(s.values).join('text').attr('class', 'v').attr('y', function (v, i) { return yb(labels[i]) + yb.bandwidth() / 2 + 3.5; })
+          .attr('x', function (v) { return xb(Math.max(0, v)) + 6; }).text(function (v) { return corto(v, f); });
       });
       svg.append('g').attr('transform', 'translate(' + mh.l + ',0)').call(d3.axisLeft(yb).tickSize(0).tickFormat(function (l) { return l.length > 24 ? l.slice(0, 23) + '…' : l; })).call(function (g) { g.select('.domain').remove(); });
       return;
@@ -248,22 +320,33 @@
       .call(function (g) { g.select('.domain').remove(); g.selectAll('line').attr('stroke', 'rgba(11,11,11,.08)'); });
     var step = Math.ceil(labels.length / Math.max(1, Math.floor((W - 60) / 46)));
     svg.append('g').attr('transform', 'translate(0,' + (H - mg.b) + ')').call(d3.axisBottom(xp).tickSize(0).tickFormat(function (l, i) { return i % step ? '' : (l.length > 9 ? l.slice(0, 8) + '…' : l); }))
-      .call(function (g) { g.select('.domain').attr('stroke', 'rgba(11,11,11,.2)'); });
+      .call(function (g) { g.select('.domain').attr('stroke', 'rgba(11,11,11,.12)'); });
     if (tipo === 'line') {
       series.forEach(function (s, k) {
         var pts = s.values.map(function (v, i) { return [xp(labels[i]), v == null ? null : yp(+v), v, labels[i]]; }).filter(function (p) { return p[1] != null; });
         svg.append('path').datum(pts).attr('fill', 'none').attr('stroke', C[k % C.length]).attr('stroke-width', 2).attr('d', d3.line().x(function (p) { return p[0]; }).y(function (p) { return p[1]; }));
-        svg.selectAll('.p' + k).data(pts).join('circle').attr('cx', function (p) { return p[0]; }).attr('cy', function (p) { return p[1]; }).attr('r', 3.2).attr('fill', C[k % C.length])
+        svg.selectAll('.p' + k).data(pts).join('circle').attr('cx', function (p) { return p[0]; }).attr('cy', function (p) { return p[1]; }).attr('r', 4)
+          .attr('fill', C[k % C.length]).attr('stroke', '#fff').attr('stroke-width', 2)
           .on('mousemove', function (e, p) { showTip(e, esc(p[3]) + '<br>' + esc(s.name) + ': ' + fmt(p[2], f)); }).on('mouseleave', hideTip);
       });
     } else {
-      var xi = d3.scaleBand().domain(series.map(function (s, i) { return i; })).range([0, xp.bandwidth()]).padding(0.06);
+      var hueco = series.length > 1 ? 2 : 0;                 // 2px de superficie entre barras contiguas
+      var slot = xp.bandwidth() / series.length;
+      var bw = Math.max(3, Math.min(24, slot - hueco));        // la barra nunca llena el hueco: el resto es aire
       series.forEach(function (s, k) {
-        svg.selectAll('.r' + k).data(s.values).join('rect').attr('x', function (v, i) { return xp(labels[i]) + xi(k); }).attr('width', xi.bandwidth())
-          .attr('y', function (v) { return yp(Math.max(0, v)); }).attr('height', function (v) { return Math.abs(yp(v) - yp(0)); }).attr('rx', 2)
+        svg.selectAll('.r' + k).data(s.values).join('path').attr('class', 'crece')
+          .style('animation-delay', function (v, i) { return (i * 55) + 'ms'; })
+          .attr('d', function (v, i) { return pathCol(xp(labels[i]) + k * slot + (slot - bw) / 2, yp(0), yp(v), bw, 4); })
           .attr('fill', function (v) { return v < 0 ? '#c8202c' : C[k % C.length]; })
           .on('mousemove', function (e, v) { var i = s.values.indexOf(v); showTip(e, esc(labels[i]) + '<br>' + esc(s.name) + ': ' + fmt(v, f)); }).on('mouseleave', hideTip);
       });
+      /* Etiqueta directa solo en el valor extremo: un numero en cada barra no se lee */
+      if (series.length === 1) {
+        var vs = series[0].values, im = 0;
+        vs.forEach(function (v, i) { if (Math.abs(+v || 0) > Math.abs(+vs[im] || 0)) im = i; });
+        if (vs[im] != null) svg.append('text').attr('class', 'v').attr('text-anchor', 'middle')
+          .attr('x', xp(labels[im]) + slot / 2).attr('y', yp(Math.max(0, vs[im])) - 5).text(corto(vs[im], f));
+      }
     }
   }
 
@@ -282,8 +365,8 @@
       var hdr = $('.ax-hd'); (hdr && hdr.parentNode ? hdr.parentNode : $('#ia-main')).insertBefore(card, hdr ? hdr.nextSibling : null);
     }
     card.replaceChildren();
-    var x = document.createElement('button'); x.className = 'ia-ico'; x.textContent = '✕'; x.title = 'Quitar'; x.style.float = 'right'; x.onclick = function () { card.remove(); };
-    var t = document.createElement('div'); t.style.cssText = 'font-size:.7rem;color:var(--color-fg-muted);margin-bottom:.2rem'; t.textContent = '✨ Análisis de IA';
+    var x = document.createElement('button'); x.className = 'ia-ico'; x.innerHTML = IC.cerrar; x.title = 'Quitar'; x.style.float = 'right'; x.onclick = function () { card.remove(); };
+    var t = document.createElement('div'); t.style.cssText = 'font-size:.7rem;color:var(--color-fg-muted);margin-bottom:.2rem'; t.innerHTML = IC.grafico + '<span>Análisis de IA</span>'; t.style.cssText += ';display:flex;align-items:center;gap:.3rem'; t.querySelector('svg').style.cssText = 'width:13px;height:13px;color:var(--ia-red)';
     card.append(x, t, bloqueGrafico(spec, true));
     return card;
   }
@@ -321,16 +404,64 @@
   }
 
   /* ---------- Pintar el chat ---------- */
+  /* Revela la respuesta palabra por palabra, con los bloques entrando escalonados.
+   * No toca tablas, gráficos ni código: ahí solo se anima el bloque entero. */
+  var SALTAR = { TABLE: 1, THEAD: 1, TBODY: 1, TR: 1, TD: 1, TH: 1, PRE: 1, CODE: 1, svg: 1, DETAILS: 1, BUTTON: 1 };
+  function revelar(caja) {
+    var PASO = 30, TOPE = 2600, t = 0;   // ms por palabra y tope total: lectura acompasada, no volcado de golpe
+    caja.classList.add('ia-rev');
+    Array.prototype.forEach.call(caja.children, function (hijo) {
+      hijo.style.animationDelay = Math.min(t, TOPE) + 'ms';
+      var salta = false, p = hijo;
+      while (p && p !== caja) { if (SALTAR[p.nodeName]) { salta = true; break; } p = p.parentNode; }
+      if (salta || hijo.classList.contains('ia-blk')) { t += 340; return; }   // tabla y gráfico entran tras el texto
+      var textos = [], w = document.createTreeWalker(hijo, NodeFilter.SHOW_TEXT, {
+        acceptNode: function (n) {
+          for (var a = n.parentNode; a && a !== hijo; a = a.parentNode) { if (SALTAR[a.nodeName]) return NodeFilter.FILTER_REJECT; }
+          return n.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+        }
+      });
+      while (w.nextNode()) textos.push(w.currentNode);
+      textos.forEach(function (nodo) {
+        var frag = document.createDocumentFragment();
+        nodo.nodeValue.split(/(\s+)/).forEach(function (tr) {
+          if (!tr) return;
+          if (/^\s+$/.test(tr)) { frag.appendChild(document.createTextNode(tr)); return; }
+          var s = document.createElement('span'); s.className = 'w'; s.textContent = tr;
+          s.style.animationDelay = Math.min(t, TOPE) + 'ms'; t += PASO;
+          frag.appendChild(s);
+        });
+        nodo.parentNode.replaceChild(frag, nodo);
+      });
+      t += 160;
+    });
+  }
+
   function burbuja(role) {
     var m = document.createElement('div'); m.className = 'ia-m ' + role;
-    if (role !== 'user') { var av = document.createElement('div'); av.className = 'ia-av'; av.textContent = 'IA'; m.appendChild(av); }
     var b = document.createElement('div'); b.className = 'ia-b'; m.appendChild(b);
     return { m: m, b: b };
   }
+  /* Bienvenida: saludo corto + ideas puntuales + lo que destaca hoy (sin párrafos largos) */
   function bienvenida() {
-    var x = burbuja('assistant');
+    var wrap = document.createElement('div');
+
+    var hero = document.createElement('div'); hero.className = 'ia-hero';
+    hero.innerHTML = '<div class="ia-emb">' + ICO + '</div><h3>Bienvenido</h3><p>¿Qué deseas saber?</p>';
+    wrap.appendChild(hero);
+
+    var grid = document.createElement('div'); grid.className = 'ia-ideas';
+    IDEAS.forEach(function (q) {
+      var b = document.createElement('button'); b.className = 'ia-idea'; b.type = 'button'; b.title = q[3];
+      b.innerHTML = '<b>' + q[0] + '<span>' + esc(q[1]) + '</span></b><small>' + esc(q[2]) + '</small>';
+      b.onclick = function () { preguntar(q[3]); };
+      grid.appendChild(b);
+    });
+    wrap.appendChild(grid);
+
     var items = (st.insights && st.insights.items) || [];
-    x.b.innerHTML = '<h4>Insights automáticos</h4><p>Hola, estoy conectado a los datos del panel (sell out, inventario, ABC-XYZ y almacenes). Esto es lo que más llama la atención hoy:</p>';
+    var hoy = document.createElement('div'); hoy.className = 'ia-today';
+    hoy.innerHTML = '<h5>Hoy destaca</h5>';
     var ul = document.createElement('ul'); ul.className = 'ia-ins';
     items.forEach(function (it) {
       var li = document.createElement('li'); li.className = it.nivel || 'info'; li.title = it.pregunta ? 'Preguntar: ' + it.pregunta : '';
@@ -338,27 +469,24 @@
       if (it.pregunta) li.onclick = function () { preguntar(it.pregunta); };
       ul.appendChild(li);
     });
-    if (!items.length) { var li0 = document.createElement('li'); li0.textContent = 'Calculando…'; ul.appendChild(li0); }
-    x.b.appendChild(ul);
+    if (!items.length) { var li0 = document.createElement('li'); li0.className = 'ia-load'; li0.textContent = 'Calculando…'; ul.appendChild(li0); }
+    hoy.appendChild(ul);
     var src = document.createElement('div'); src.className = 'ia-src';
-    src.textContent = st.insights && st.insights.fuente === 'ia' ? 'Generados por Claude con los datos actuales · clic para profundizar' :
-      (st.insights && st.insights.fuente === 'cargando' ? 'Claude está preparando su análisis…' : 'Calculados con reglas sobre los datos actuales · clic para profundizar');
-    x.b.appendChild(src);
-    var chips = document.createElement('div'); chips.className = 'ia-chips';
-    [['📊 ¿Qué explica la venta del último mes?', '¿Qué explica la variación de la venta del último mes frente al anterior? Muéstrame los proveedores que más suben y bajan.'],
-     ['🧾 Resumen para gerencia', 'Prepárame un resumen ejecutivo de 5 puntos del estado de ventas, margen, inventario y almacenes, con una tabla de los indicadores clave.']].forEach(function (q) {
-      var c = document.createElement('button'); c.className = 'ia-chip'; c.textContent = q[0]; c.onclick = function () { preguntar(q[1]); }; chips.appendChild(c);
-    });
-    x.b.appendChild(chips);
-    return x.m;
+    src.textContent = st.insights && st.insights.fuente === 'ia' ? 'Claude · clic para profundizar' :
+      (st.insights && st.insights.fuente === 'cargando' ? 'Claude está preparando su análisis…' : 'Reglas sobre los datos actuales · clic para profundizar');
+    hoy.appendChild(src);
+    wrap.appendChild(hoy);
+
+    return wrap;
   }
+
   function mensaje(m) {
     var x = burbuja(m.role);
     if (m.role === 'user') { x.b.textContent = m.texto; return x.m; }
     x.b.innerHTML = md(m.texto);
     (m.bloques || []).forEach(function (b) { x.b.appendChild(b.type === 'table' ? bloqueTabla(b) : bloqueGrafico(b, false)); });
     if (m.accion_desc && m.accion_desc.length) {
-      var a = document.createElement('div'); a.className = 'ia-act'; a.textContent = '✓ Dashboard: ' + m.accion_desc.join(' · '); x.b.appendChild(a);
+      var a = document.createElement('div'); a.className = 'ia-act'; a.innerHTML = IC.ok + '<span>Dashboard: ' + esc(m.accion_desc.join(' · ')) + '</span>'; x.b.appendChild(a);
     }
     if (m.consultas && m.consultas.length) {
       var d = document.createElement('details'); d.className = 'ia-q';
@@ -366,6 +494,8 @@
       x.b.appendChild(d);
     }
     if (m.error) { x.b.style.borderColor = '#e8b4b4'; }
+    // la animación corre solo la primera vez que llega el mensaje, no en cada repintado
+    if (m.id && !st.animados[m.id]) { st.animados[m.id] = 1; revelar(x.b); }
     return x.m;
   }
   function pintar(forzar) {
@@ -373,13 +503,17 @@
     if (!forzar && key === st.vistoKey) return;
     st.vistoKey = key;
     var abajo = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 60;
-    msgs.replaceChildren(bienvenida());
+    msgs.replaceChildren();
+    if (!st.chat.length) msgs.appendChild(bienvenida());   // desaparece con la primera pregunta
     st.chat.forEach(function (m) { msgs.appendChild(mensaje(m)); });
     if (st.busy) {
-      var t = burbuja('assistant'); t.m.classList.add('ia-typing'); t.b.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span><span style="margin-left:.35rem">Analizando los datos…</span>'; msgs.appendChild(t.m);
+      var t = burbuja('assistant'); t.m.classList.add('ia-typing'); t.b.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span><span style="margin-left:.35rem">Analizando…</span>'; msgs.appendChild(t.m);
     }
     if (st.error) { var e = burbuja('assistant'); e.b.style.borderColor = '#e8b4b4'; e.b.textContent = st.error; msgs.appendChild(e.m); }
     btn.disabled = st.busy; txt.disabled = st.busy;
+    var es = $('#ia-estado');
+    if (es) { es.title = !st.iaOk ? 'Sin clave de API' : (st.busy ? 'Analizando…' : 'En línea'); es.classList.toggle('off', !st.iaOk); }
+    panel.classList.toggle('ia-working', st.busy);   // el anillo del logo late solo mientras trabaja
     if (abajo || forzar || st.busy) msgs.scrollTop = msgs.scrollHeight;
     if (!st.busy) txt.focus({ preventScroll: true });
   }
@@ -397,7 +531,7 @@
     st.iaOk = !!a.ia_ok;
     $('#ia-model').textContent = a.modelo ? 'Claude · ' + a.modelo : 'Claude';
     var w = $('#ia-warn');
-    w.hidden = !!a.ia_ok; w.textContent = a.ia_ok ? '' : '⚠ Falta configurar ANTHROPIC_API_KEY en los Secrets de la app: el chat está desactivado (los insights usan reglas).';
+    w.hidden = !!a.ia_ok; w.textContent = a.ia_ok ? '' : '⚠ Falta ANTHROPIC_API_KEY en los Secrets: el chat está desactivado.';
     if (a.insights) st.insights = a.insights;
     if (Array.isArray(a.chat)) {
       var srv = a.chat;
