@@ -79,17 +79,19 @@ body:not(.ia-closed) #ia-handle .ia-fab-a{opacity:0;transform:rotate(90deg)}
 .ia-b table.md{width:100%;font-size:.78rem;margin:.4rem 0}
 .ia-b table.md th,.ia-b table.md td{border-bottom:1px solid var(--ia-line);padding:.25rem .35rem;text-align:left}
 
-/* Aparición progresiva de la respuesta: por bloques y por palabras */
-.ia-rev>*{animation:ia-blk-in .28s var(--ia-ease) both}
-@keyframes ia-blk-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-.ia-rev .w{opacity:0;animation:ia-w .26s ease forwards}
-@keyframes ia-w{to{opacity:1}}
+/* El texto se escribe de verdad (el JS lo inserta palabra a palabra); aquí solo
+   la entrada de cada pieza que se cuelga después y el cursor mientras escribe */
+.ia-entra{animation:ia-entra .34s var(--ia-ease) both}
+@keyframes ia-entra{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
+.ia-escribiendo>*:last-child::after{content:"";display:inline-block;width:2px;height:.9em;vertical-align:-1px;margin-left:2px;
+  background:var(--ia-red);animation:ia-caret .9s steps(1) infinite}
+@keyframes ia-caret{50%{opacity:0}}
 
 /* Menos movimiento no es ningún movimiento: se mantiene el fundido, se quita el desplazamiento */
 @keyframes ia-fade{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){
-  .ia-m,.ia-hero,.ia-idea,.ia-today,.ia-rev>*,#ia-handle{animation:ia-fade .2s ease both!important}
-  .ia-rev .w{animation:none!important;opacity:1!important}
+  .ia-m,.ia-hero,.ia-idea,.ia-today,.ia-entra,#ia-handle{animation:ia-fade .2s ease both!important}
+  .ia-escribiendo>*:last-child::after{animation:none!important}
   body:not(.ia-closed) .ia-hd::after,.ia-working .ia-logo::before,body.ia-closed #ia-handle::before{animation:none!important}
   #ia-panel,#ia-handle,#ia-handle .ia-fab-i{transition-duration:.12s!important}
   .ia-idea:hover,.ia-ins li:hover,.ia-ico:hover,.ia-send:hover:not(:disabled),#ia-handle:hover{transform:none}

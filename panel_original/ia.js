@@ -404,37 +404,51 @@
   }
 
   /* ---------- Pintar el chat ---------- */
-  /* Revela la respuesta palabra por palabra, con los bloques entrando escalonados.
-   * No toca tablas, gráficos ni código: ahí solo se anima el bloque entero. */
+  /* Escribe la respuesta de verdad: inserta el texto palabra a palabra y despues
+   * cuelga cada bloque. La burbuja crece con el contenido en vez de nacer entera. */
   var SALTAR = { TABLE: 1, THEAD: 1, TBODY: 1, TR: 1, TD: 1, TH: 1, PRE: 1, CODE: 1, svg: 1, DETAILS: 1, BUTTON: 1 };
-  function revelar(caja) {
-    var PASO = 30, TOPE = 2600, t = 0;   // ms por palabra y tope total: lectura acompasada, no volcado de golpe
-    caja.classList.add('ia-rev');
-    Array.prototype.forEach.call(caja.children, function (hijo) {
-      hijo.style.animationDelay = Math.min(t, TOPE) + 'ms';
-      var salta = false, p = hijo;
-      while (p && p !== caja) { if (SALTAR[p.nodeName]) { salta = true; break; } p = p.parentNode; }
-      if (salta || hijo.classList.contains('ia-blk')) { t += 340; return; }   // tabla y gráfico entran tras el texto
-      var textos = [], w = document.createTreeWalker(hijo, NodeFilter.SHOW_TEXT, {
-        acceptNode: function (n) {
-          for (var a = n.parentNode; a && a !== hijo; a = a.parentNode) { if (SALTAR[a.nodeName]) return NodeFilter.FILTER_REJECT; }
-          return n.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
-        }
-      });
-      while (w.nextNode()) textos.push(w.currentNode);
-      textos.forEach(function (nodo) {
-        var frag = document.createDocumentFragment();
-        nodo.nodeValue.split(/(\s+)/).forEach(function (tr) {
-          if (!tr) return;
-          if (/^\s+$/.test(tr)) { frag.appendChild(document.createTextNode(tr)); return; }
-          var s = document.createElement('span'); s.className = 'w'; s.textContent = tr;
-          s.style.animationDelay = Math.min(t, TOPE) + 'ms'; t += PASO;
-          frag.appendChild(s);
-        });
-        nodo.parentNode.replaceChild(frag, nodo);
-      });
-      t += 160;
+  var PASO_PALABRA = 26, PAUSA_BLOQUE = 420;
+
+  function alFondo(pegado) {
+    if (pegado) msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  function revelar(caja, piezas) {
+    // Vacia los textos ya pintados y guarda sus palabras para irlas devolviendo
+    var nodos = [], w = document.createTreeWalker(caja, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (n) {
+        for (var a = n.parentNode; a && a !== caja; a = a.parentNode) { if (SALTAR[a.nodeName]) return NodeFilter.FILTER_REJECT; }
+        return n.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      }
     });
+    while (w.nextNode()) nodos.push(w.currentNode);
+    var plan = nodos.map(function (n) { var t = n.nodeValue.split(/(\s+)/); n.nodeValue = ''; return { n: n, t: t, i: 0 }; });
+
+    var k = 0, bi = 0;
+    var pegado = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 80;
+    caja.classList.add('ia-escribiendo');
+
+    function palabra() {
+      if (!caja.isConnected) return;
+      while (plan[k] && plan[k].i >= plan[k].t.length) k++;
+      var t = plan[k];
+      if (!t) { caja.classList.remove('ia-escribiendo'); return bloque(); }
+      t.n.nodeValue += t.t[t.i++];
+      if (t.i < t.t.length && /^\s+$/.test(t.t[t.i])) t.n.nodeValue += t.t[t.i++];
+      alFondo(pegado);
+      setTimeout(palabra, PASO_PALABRA);
+    }
+
+    function bloque() {
+      if (!caja.isConnected || bi >= piezas.length) return;
+      var el = piezas[bi++]();          // se crea aqui: el grafico ya mide el ancho real
+      el.classList.add('ia-entra');
+      caja.appendChild(el);
+      alFondo(pegado);
+      setTimeout(bloque, PAUSA_BLOQUE);
+    }
+
+    plan.length ? palabra() : bloque();
   }
 
   function burbuja(role) {
@@ -447,7 +461,8 @@
     var wrap = document.createElement('div');
 
     var hero = document.createElement('div'); hero.className = 'ia-hero';
-    hero.innerHTML = '<div class="ia-emb">' + ICO + '</div><h3>Bienvenido</h3><p>¿Qué deseas saber?</p>';
+    hero.innerHTML = '<div class="ia-emb">' + ICO + '</div><h3>Hola, soy tu asistente</h3>' +
+      '<p>¿Qué quieres saber del panel?</p>';
     wrap.appendChild(hero);
 
     var grid = document.createElement('div'); grid.className = 'ia-ideas';
@@ -476,7 +491,6 @@
       (st.insights && st.insights.fuente === 'cargando' ? 'Claude está preparando su análisis…' : 'Reglas sobre los datos actuales · clic para profundizar');
     hoy.appendChild(src);
     wrap.appendChild(hoy);
-
     return wrap;
   }
 
@@ -484,18 +498,25 @@
     var x = burbuja(m.role);
     if (m.role === 'user') { x.b.textContent = m.texto; return x.m; }
     x.b.innerHTML = md(m.texto);
-    (m.bloques || []).forEach(function (b) { x.b.appendChild(b.type === 'table' ? bloqueTabla(b) : bloqueGrafico(b, false)); });
-    if (m.accion_desc && m.accion_desc.length) {
-      var a = document.createElement('div'); a.className = 'ia-act'; a.innerHTML = IC.ok + '<span>Dashboard: ' + esc(m.accion_desc.join(' · ')) + '</span>'; x.b.appendChild(a);
-    }
-    if (m.consultas && m.consultas.length) {
+
+    // Cada pieza es una fabrica: se construye en el momento de colgarla
+    var piezas = (m.bloques || []).map(function (b) {
+      return function () { return b.type === 'table' ? bloqueTabla(b) : bloqueGrafico(b, false); };
+    });
+    if (m.accion_desc && m.accion_desc.length) piezas.push(function () {
+      var a = document.createElement('div'); a.className = 'ia-act';
+      a.innerHTML = IC.ok + '<span>Dashboard: ' + esc(m.accion_desc.join(' · ')) + '</span>'; return a;
+    });
+    if (m.consultas && m.consultas.length) piezas.push(function () {
       var d = document.createElement('details'); d.className = 'ia-q';
       d.innerHTML = '<summary>' + m.consultas.length + ' consulta(s) a los datos</summary>' + m.consultas.map(function (q) { return '<pre>' + esc(q.herramienta + ': ' + q.detalle) + '</pre>'; }).join('');
-      x.b.appendChild(d);
-    }
+      return d;
+    });
     if (m.error) { x.b.style.borderColor = '#e8b4b4'; }
-    // la animación corre solo la primera vez que llega el mensaje, no en cada repintado
-    if (m.id && !st.animados[m.id]) { st.animados[m.id] = 1; revelar(x.b); }
+
+    // Se escribe solo la primera vez que llega el mensaje; en los repintados aparece entero
+    if (m.id && !st.animados[m.id]) { st.animados[m.id] = 1; revelar(x.b, piezas); }
+    else piezas.forEach(function (f) { x.b.appendChild(f()); });
     return x.m;
   }
   function pintar(forzar) {
