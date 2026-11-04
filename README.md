@@ -6,8 +6,11 @@ Versión en Python del dashboard "Panel de Inventario y Abastecimiento" de ALFA 
 
 | Archivo | Para qué sirve |
 |---|---|
-| `app.py` | La app: pestañas Panel de control, Política por segmento, Capacidad de almacén, Planificación y Asistente IA |
-| `calc.py` | Los cálculos del panel (los mismos del dashboard original, pasados a pandas) |
+| `app.py` | La app: pestaña **Panel** (el dashboard original, mismo diseño) y pestaña **Asistente IA** |
+| `panel_component.py` | Muestra la página original del dashboard dentro de Streamlit y le pasa los datos |
+| `panel_original/pagina.html` | La página original del dashboard (HTML/JS), sin cambios |
+| `panel_original/shim.js`, `base.css`, `d3.min.js` | Reemplazan el entorno de claude.ai: la API `dash`, los colores y tipografías del tema y la librería de gráficos d3 |
+| `calc.py` | Los cálculos del panel pasados a pandas (los usa el asistente de IA) |
 | `agent.py` | El asistente de IA: Claude con herramientas para consultar los datos (SQL de solo lectura con DuckDB), simular descuentos y planificar compras |
 | `data/` | Copia de los datos al 03/11/2026 (inventario, ABC-XYZ, almacenes, sell out ene–sep 2026) |
 | `requirements.txt` | Librerías de Python |
@@ -55,6 +58,12 @@ Columnas esperadas:
 - `sku_venta.csv`: sku, ult_venta, unidades, venta, costo_sin_igv
 
 Más adelante se puede conectar SharePoint (Microsoft Graph) para que lea los Excel directamente.
+
+## Diseño del panel
+
+La pestaña Panel es la misma página del Claude Dashboard: `panel_original/pagina.html` corre dentro de un componente de Streamlit y `shim.js` le da los datos de `data/` con la misma API (`dash.calc`, `dash.data`, `dash.setParams`…). Si el dashboard original cambia, reemplaza `pagina.html` por el nuevo `files/index.html` y reinicia la app; `index.html` se vuelve a armar solo al iniciar.
+
+Diferencia con claude.ai: las tipografías propias de Anthropic se reemplazan por las del sistema (no se pueden redistribuir).
 
 ## Asistente de IA
 
