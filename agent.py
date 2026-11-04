@@ -22,7 +22,7 @@ import pandas as pd
 
 import calc
 
-MODELO_POR_DEFECTO = "claude-sonnet-5-5"
+MODELO_POR_DEFECTO = "claude-haiku-5-5"
 MAX_PASOS = 10
 MAX_FILAS_MODELO = 200
 MAX_FILAS_TABLA = 60
