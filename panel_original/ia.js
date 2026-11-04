@@ -6,9 +6,9 @@
   'use strict';
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
-  var st = { chat: [], busy: false, pending: null, iaOk: false, insights: null, insPedido: false, vistoKey: '', acciones: {}, abierto: true, error: null, animados: {} };
+  var st = { chat: [], busy: false, pending: null, iaOk: false, insights: null, insPedido: false, vistoKey: '', acciones: {}, abierto: false, error: null, animados: {} };
   try { st.acciones = JSON.parse(sessionStorage.getItem('ia_acc') || '{}'); } catch (e) { st.acciones = {}; }
-  try { st.abierto = localStorage.getItem('ia_open') !== '0'; } catch (e) { /* nada */ }
+  // Arranca siempre cerrado: el panel solo se abre pulsando la cabeza de abajo
 
   /* Ideas puntuales de la bienvenida: [icono, título corto, pista, pregunta real] */
   var IDEAS;
@@ -42,7 +42,8 @@
   /* ---------- Estructura ---------- */
   var panel = $('#ia-panel');
   panel.innerHTML =
-    '<div class="ia-hd"><b class="ia-tt">Asistente<span class="ia-dot" id="ia-estado"></span></b>' +
+    '<div class="ia-hd"><button class="ia-cabeza" id="ia-cab" type="button" title="Cerrar el asistente" aria-label="Cerrar el asistente"><i></i><i></i></button>' +
+    '<b class="ia-tt">Asistente<span class="ia-dot" id="ia-estado"></span></b>' +
     '<button class="ia-ico" id="ia-new" type="button" title="Nueva conversación" aria-label="Nueva conversación">' + IC.nuevo + '</button></div>' +
     '<p class="ia-warn" id="ia-warn" hidden></p>' +
     '<div id="ia-msgs" aria-live="polite"></div>' +
@@ -53,19 +54,66 @@
   var msgs = $('#ia-msgs'), txt = $('#ia-txt'), btn = $('#ia-send');
   var tip = document.createElement('div'); tip.className = 'ia-tip'; tip.hidden = true; document.body.appendChild(tip);
 
-  function abrir(v) {
-    st.abierto = v; document.body.classList.toggle('ia-closed', !v);
+  /* Lanza una copia de la cabeza de un sitio a otro. Si no se puede medir
+   * (panel oculto, navegador sin layout), no vuela: el cambio ocurre igual. */
+  function volar(desde, hasta, destino, listo) {
+    var r1 = desde.getBoundingClientRect();
+    if (!r1.width || !destino || !destino.ancho) { listo(); return; }
+    var copia = document.createElement('div');
+    copia.className = 'ia-vuela';
+    copia.innerHTML = '<i></i><i></i>';
+    copia.style.cssText = 'left:' + r1.left + 'px;top:' + r1.top + 'px;width:' + r1.width + 'px;height:' + r1.height + 'px';
+    document.body.appendChild(copia);
+    var dx = destino.x - r1.left, dy = destino.y - r1.top, k = destino.ancho / r1.width;
+    requestAnimationFrame(function () {
+      copia.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + k + ')';
+    });
+    setTimeout(function () { copia.remove(); listo(); }, 460);
+  }
+
+  /* Dónde acabará la cabecera cuando el panel esté abierto, sin esperar a la transición */
+  function sitioCabecera() {
+    var cab = $('#ia-cab'), panel = $('#ia-panel');
+    if (!cab || !panel || !panel.offsetWidth) return null;
+    var r = cab.getBoundingClientRect(), ancho = cab.offsetWidth || 30;
+    if (document.body.classList.contains('ia-closed')) {
+      // el panel está fuera de pantalla: se calcula su posición final
+      return { x: window.innerWidth - panel.offsetWidth + cab.offsetLeft, y: cab.offsetTop, ancho: ancho };
+    }
+    return { x: r.left, y: r.top, ancho: ancho };
+  }
+
+  function abrir(v, conVuelo) {
     var h = $('#ia-handle');
-    // Botón circular: dos iconos superpuestos que cruzan y giran (el CSS decide cuál se ve)
-    if (!$('.ia-fab-i', h)) h.innerHTML = '<span class="ia-fab-i ia-fab-a">' + ICO + '</span><span class="ia-fab-i ia-fab-b">' + IC.cerrar + '</span>';
+    if (!$('.ia-cara', h)) h.innerHTML = '<span class="ia-cara"><i></i><i></i></span>';
     h.setAttribute('aria-expanded', v ? 'true' : 'false');
     h.setAttribute('aria-label', v ? 'Cerrar el asistente' : 'Abrir el asistente');
     h.title = v ? 'Cerrar el asistente' : 'Abrir el asistente';
-    try { localStorage.setItem('ia_open', v ? '1' : '0'); } catch (e) { /* nada */ }
-    // al terminar la transición el dashboard ya tiene su ancho final: se redibujan los gráficos
-    setTimeout(function () { window.dispatchEvent(new Event('resize')); try { dash.refresh(); } catch (e) { /* nada */ } }, 460);
+
+    function aplicar() {
+      st.abierto = v;
+      document.body.classList.toggle('ia-closed', !v);
+      document.body.classList.toggle('ia-volando', false);
+      // al terminar la transición el dashboard ya tiene su ancho final: se redibujan los gráficos
+      setTimeout(function () { window.dispatchEvent(new Event('resize')); try { dash.refresh(); } catch (e) { /* nada */ } }, 460);
+    }
+
+    if (!conVuelo) { aplicar(); return; }
+    var cab = $('#ia-cab');
+    if (v) {
+      var destino = sitioCabecera();
+      document.body.classList.add('ia-volando');          // oculta botón y cabeza durante el vuelo
+      document.body.classList.remove('ia-closed');        // el panel entra a la vez
+      volar(h, cab, destino, aplicar);
+    } else {
+      var r = h.getBoundingClientRect();
+      document.body.classList.add('ia-volando');
+      volar(cab, h, { x: r.left, y: r.top, ancho: r.width || 54 }, aplicar);
+    }
   }
-  $('#ia-handle').onclick = function () { abrir(!st.abierto); };
+  $('#ia-handle').onclick = function () { abrir(!st.abierto, true); };
+  $('#ia-cab').onclick = function () { abrir(false, true); };
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && st.abierto) abrir(false, true); });
   $('#ia-new').onclick = function () { if (!st.busy) { window.stSend('streamlit:setComponentValue', { value: { id: nuevoId(), tipo: 'reiniciar' }, dataType: 'json' }); } };
   abrir(st.abierto);
   /* El panel se abre y se cierra solo con el botón circular: no se añade nada a la cabecera del dashboard */

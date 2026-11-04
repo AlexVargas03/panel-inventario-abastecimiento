@@ -21,8 +21,8 @@ body.ia-closed #ia-panel{margin-right:calc(-1 * var(--ia-w));opacity:.4;transiti
 /* Se desplaza con transform, nunca con right/bottom: así no provoca layout por frame */
 #ia-handle{position:absolute;right:1.25rem;bottom:1.25rem;z-index:30;width:54px;height:54px;padding:0;
   border:0;border-radius:50%;cursor:pointer;color:#fff;
-  background:radial-gradient(120% 120% at 30% 20%,#d4242f 0%,#b3151f 55%,#8f0f18 100%);
-  box-shadow:0 10px 26px rgba(179,21,31,.36),0 2px 6px rgba(0,0,0,.16);
+  background:radial-gradient(120% 120% at 30% 20%,#ffffff 0%,#ffe3e4 55%,#ffc9cb 100%);
+  box-shadow:0 10px 26px rgba(179,21,31,.3),0 2px 6px rgba(0,0,0,.14);
   transform:translateX(calc(-1 * var(--ia-w)));scale:1;
   transition:transform var(--ia-dur) var(--ia-drawer),scale .16s var(--ia-ease),box-shadow .2s ease;
   animation:ia-fab-in .4s var(--ia-ease) .1s both}
@@ -33,13 +33,27 @@ body.ia-closed #ia-handle{transform:translateX(0);transition-duration:var(--ia-d
 #ia-handle::before{content:"";position:absolute;inset:0;border-radius:50%;background:var(--ia-red2);z-index:-1;opacity:0}
 body.ia-closed #ia-handle::before{animation:ia-fab-halo 3.4s ease-out infinite}
 @keyframes ia-fab-halo{0%{transform:scale(1);opacity:.45}70%,100%{transform:scale(1.5);opacity:0}}
-/* Dos iconos superpuestos: cruzan y giran al alternar */
-#ia-handle .ia-fab-i{position:absolute;inset:0;display:grid;place-items:center;
-  transition:opacity .2s ease,transform .32s var(--ia-ease)}
-#ia-handle .ia-fab-i svg{width:23px;height:23px}
-#ia-handle .ia-fab-b{font-size:20px;line-height:1}
-body.ia-closed #ia-handle .ia-fab-b{opacity:0;transform:rotate(-90deg)}
-body:not(.ia-closed) #ia-handle .ia-fab-a{opacity:0;transform:rotate(90deg)}
+/* La cara: dos ojos negros que parpadean de vez en cuando */
+#ia-handle .ia-cara{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px}
+.ia-cara i,.ia-cabeza i,.ia-vuela i{display:block;width:7px;height:7px;border-radius:50%;background:#111;
+  transform-origin:center;animation:ia-parpadeo 5.4s infinite}
+.ia-cabeza i,.ia-vuela i{width:5px;height:5px}
+/* Casi todo el ciclo con el ojo abierto; el parpadeo es un instante */
+@keyframes ia-parpadeo{0%,93%,100%{transform:scaleY(1)}95.5%{transform:scaleY(.1)}}
+
+/* La misma cabeza, ya posada en la cabecera: cierra el asistente */
+.ia-cabeza{position:relative;width:30px;height:30px;flex:none;border:0;padding:0;cursor:pointer;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  background:radial-gradient(120% 120% at 30% 20%,#ffffff 0%,#ffe3e4 55%,#ffc9cb 100%);
+  box-shadow:0 2px 8px rgba(0,0,0,.18);transition:transform .16s var(--ia-ease)}
+.ia-cabeza:active{transform:scale(.94)}
+body.ia-volando .ia-cabeza,body.ia-volando #ia-handle{visibility:hidden}
+
+/* La copia que viaja entre el boton y la cabecera */
+.ia-vuela{position:fixed;z-index:60;border-radius:50%;display:flex;align-items:center;justify-content:center;gap:6px;
+  background:radial-gradient(120% 120% at 30% 20%,#ffffff 0%,#ffe3e4 55%,#ffc9cb 100%);
+  box-shadow:0 10px 26px rgba(179,21,31,.3);transform-origin:top left;pointer-events:none;
+  transition:transform .46s var(--ia-drawer)}
 
 /* ---------- Cabecera: un solo color plano, sin logo ni distintivos ---------- */
 .ia-hd{position:relative;display:flex;align-items:center;gap:.6rem;padding:.6rem .6rem .6rem 1rem;
@@ -93,7 +107,9 @@ body:not(.ia-closed) #ia-handle .ia-fab-a{opacity:0;transform:rotate(90deg)}
   .ia-m,.ia-hero,.ia-idea,.ia-today,.ia-entra,#ia-handle{animation:ia-fade .2s ease both!important}
   .ia-escribiendo>*:last-child::after{animation:none!important}
   body:not(.ia-closed) .ia-hd::after,.ia-working .ia-logo::before,body.ia-closed #ia-handle::before{animation:none!important}
-  #ia-panel,#ia-handle,#ia-handle .ia-fab-i{transition-duration:.12s!important}
+  .ia-cara i,.ia-cabeza i,.ia-vuela i{animation:none!important}
+  .ia-vuela{transition:none!important}
+  #ia-panel,#ia-handle{transition-duration:.12s!important}
   .ia-idea:hover,.ia-ins li:hover,.ia-ico:hover,.ia-send:hover:not(:disabled),#ia-handle:hover{transform:none}
 }
 
