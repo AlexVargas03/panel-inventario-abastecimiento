@@ -128,18 +128,26 @@ if ss.get("sesion_version") != version:
     ss["insights_ia_ok"] = False
 
 
+def _es_pregunta(m: dict) -> bool:
+    """Turno real del usuario (no los mensajes que solo llevan resultados de herramientas)."""
+    c = m.get("content")
+    if m.get("role") != "user":
+        return False
+    if isinstance(c, str):
+        return True
+    return bool(c) and isinstance(c[0], dict) and c[0].get("type") == "text"
+
+
 def compactar(hist: list, max_turnos: int = 12) -> list:
-    """Limita la memoria: últimas preguntas completas y resultados de herramientas antiguos recortados."""
-    inicios = [i for i, m in enumerate(hist) if m["role"] == "user" and isinstance(m["content"], str)]
+    """Limita la memoria soltando turnos antiguos por delante.
+
+    No recorta mensajes ya enviados: editar el historial invalida los bloques de
+    razonamiento firmados de los turnos posteriores (400 de la API). Quitar turnos
+    completos por el principio sí está permitido.
+    """
+    inicios = [i for i, m in enumerate(hist) if _es_pregunta(m)]
     if len(inicios) > max_turnos:
         hist = hist[inicios[-max_turnos]:]
-        inicios = [i for i, m in enumerate(hist) if m["role"] == "user" and isinstance(m["content"], str)]
-    ultimo = inicios[-1] if inicios else 0
-    for m in hist[:ultimo]:
-        if m["role"] == "user" and isinstance(m["content"], list):
-            for b in m["content"]:
-                if b.get("type") == "tool_result" and isinstance(b.get("content"), str) and len(b["content"]) > 1200:
-                    b["content"] = b["content"][:1200] + "\n…(recortado)"
     return hist
 
 

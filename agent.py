@@ -640,17 +640,50 @@ class Sesion:
         return "Dashboard actualizado: " + (", ".join(desc) if desc else "sin cambios")
 
 
+def sin_razonamiento(msgs: list) -> list:
+    """Quita los bloques de razonamiento del historial.
+
+    Cada bloque va firmado contra el prefijo que lo produjo (system prompt,
+    herramientas y mensajes anteriores). Si algo de eso cambia, la API responde
+    400 "bound to a different conversation". Esto es la recuperación.
+    """
+    out = []
+    for m in msgs:
+        c = m.get("content")
+        if m.get("role") == "assistant" and isinstance(c, list):
+            limpio = [b for b in c if (b.get("type") if isinstance(b, dict) else None) not in ("thinking", "redacted_thinking")]
+            if not limpio:
+                continue          # solo tenía razonamiento: el turno entero sobra
+            m = {**m, "content": limpio}
+        out.append(m)
+    return out
+
+
 def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: dict | None) -> tuple[dict, list]:
     """Corre el ciclo de herramientas. Devuelve ({texto, bloques, accion, consultas}, historial)."""
     sesion.reiniciar_turno()
-    sistema = [
-        {"type": "text", "text": system_prompt(sesion.V, sesion.R), "cache_control": {"type": "ephemeral"}},
-        {"type": "text", "text": "Estado actual del dashboard que ve el usuario:\n" + describir_contexto(contexto, sesion.R)},
-    ]
+    # El system se queda igual entre turnos. El estado del dashboard cambia en cada
+    # pregunta, así que viaja dentro del turno del usuario: si cambiara el system,
+    # los bloques de razonamiento firmados de los turnos previos quedarían inválidos.
+    sistema = [{"type": "text", "text": system_prompt(sesion.V, sesion.R), "cache_control": {"type": "ephemeral"}}]
     msgs = list(historial)
+    if msgs and msgs[-1].get("role") == "user" and isinstance(msgs[-1].get("content"), str):
+        msgs[-1] = {"role": "user", "content": [
+            {"type": "text", "text": msgs[-1]["content"]},
+            {"type": "text", "text": "[Estado actual del dashboard que ve el usuario]\n" + describir_contexto(contexto, sesion.R)},
+        ]}
     texto = ""
+    recuperado = False
     for _ in range(MAX_PASOS):
-        resp = cliente.messages.create(model=modelo, max_tokens=16000, system=sistema, tools=HERRAMIENTAS, messages=msgs)
+        try:
+            resp = cliente.messages.create(model=modelo, max_tokens=16000, system=sistema, tools=HERRAMIENTAS, messages=msgs)
+        except Exception as e:
+            # Conversación heredada de una versión anterior del prompt: se reintenta sin razonamiento
+            if not recuperado and "bound to a different conversation" in str(e):
+                recuperado = True
+                msgs = sin_razonamiento(msgs)
+                continue
+            raise
         msgs.append({"role": "assistant", "content": [b.model_dump(exclude_none=True) for b in resp.content]})
         texto = "\n".join(b.text for b in resp.content if b.type == "text").strip() or texto
         usos = [b for b in resp.content if b.type == "tool_use"]
@@ -662,7 +695,7 @@ def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: d
                 out = sesion.ejecutar(u.name, dict(u.input))
             except Exception as e:
                 out = f"Error: {e}"
-            res.append({"type": "tool_result", "tool_use_id": u.id, "content": str(out)[:60000]})
+            res.append({"type": "tool_result", "tool_use_id": u.id, "content": str(out)[:20000]})   # tope al crearlo: el historial ya no se recorta despues
         msgs.append({"role": "user", "content": res})
     else:
         texto = texto or "Necesité demasiados pasos. Prueba con una pregunta más específica."
