@@ -424,12 +424,25 @@
     while (w.nextNode()) nodos.push(w.currentNode);
     var plan = nodos.map(function (n) { var t = n.nodeValue.split(/(\s+)/); n.nodeValue = ''; return { n: n, t: t, i: 0 }; });
 
-    var k = 0, bi = 0;
+    var k = 0, bi = 0, fin = false;
     var pegado = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 80;
     caja.classList.add('ia-escribiendo');
 
+    // Red de seguridad: pase lo que pase, el mensaje termina completo
+    function completar() {
+      if (fin) return;
+      fin = true;
+      plan.forEach(function (t) { while (t.i < t.t.length) t.n.nodeValue += t.t[t.i++]; });
+      caja.classList.remove('ia-escribiendo');
+      while (bi < piezas.length) caja.appendChild(piezas[bi++]());
+      alFondo(pegado);
+    }
+    var palabras = plan.reduce(function (a, t) { return a + t.t.length; }, 0);
+    setTimeout(completar, palabras * PASO_PALABRA + piezas.length * PAUSA_BLOQUE + 5000);
+
     function palabra() {
-      if (!caja.isConnected) return;
+      if (fin) return;
+      if (!caja.isConnected) return completar();   // la reemplazo un repintado
       while (plan[k] && plan[k].i >= plan[k].t.length) k++;
       var t = plan[k];
       if (!t) { caja.classList.remove('ia-escribiendo'); return bloque(); }
@@ -440,7 +453,9 @@
     }
 
     function bloque() {
-      if (!caja.isConnected || bi >= piezas.length) return;
+      if (fin) return;
+      if (!caja.isConnected) return completar();
+      if (bi >= piezas.length) { fin = true; return; }
       var el = piezas[bi++]();          // se crea aqui: el grafico ya mide el ancho real
       el.classList.add('ia-entra');
       caja.appendChild(el);
@@ -515,10 +530,21 @@
     if (m.error) { x.b.style.borderColor = '#e8b4b4'; }
 
     // Se escribe solo la primera vez que llega el mensaje; en los repintados aparece entero
-    if (m.id && !st.animados[m.id]) { st.animados[m.id] = 1; revelar(x.b, piezas); }
+    // La animacion no arranca aqui: la burbuja todavia no esta en el documento.
+    // pintar() la lanza justo despues de colgarla (ver colgar()).
+    if (m.id && !st.animados[m.id]) { st.animados[m.id] = 1; x.m.animar = function () { revelar(x.b, piezas); }; }
     else piezas.forEach(function (f) { x.b.appendChild(f()); });
     return x.m;
   }
+  /* Cuelga el mensaje y solo entonces lo anima: fuera del documento no se puede
+   * medir nada y la escritura se quedaba parada con el texto en blanco. */
+  function colgar(m) {
+    var el = mensaje(m);
+    msgs.appendChild(el);
+    if (el.animar) { var f = el.animar; el.animar = null; f(); }
+    return el;
+  }
+
   function pintar(forzar) {
     var key = st.chat.length + '|' + (st.chat.length ? st.chat[st.chat.length - 1].id : '') + '|' + st.busy + '|' + (st.insights ? st.insights.fuente + st.insights.items.length : '') + '|' + (st.error || '');
     if (!forzar && key === st.vistoKey) return;
@@ -526,7 +552,7 @@
     var abajo = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 60;
     msgs.replaceChildren();
     if (!st.chat.length) msgs.appendChild(bienvenida());   // desaparece con la primera pregunta
-    st.chat.forEach(function (m) { msgs.appendChild(mensaje(m)); });
+    st.chat.forEach(function (m) { colgar(m); });
     if (st.busy) {
       var t = burbuja('assistant'); t.m.classList.add('ia-typing'); t.b.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span><span style="margin-left:.35rem">Analizando…</span>'; msgs.appendChild(t.m);
     }
