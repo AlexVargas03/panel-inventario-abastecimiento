@@ -87,8 +87,14 @@ body.ia-volando .ia-cabeza,body.ia-volando #ia-handle{visibility:hidden}
 .ia-m.assistant .ia-b{border-bottom-left-radius:5px}
 .ia-b h4{margin:0 0 .35rem;color:var(--ia-red);font-size:.82rem}
 .ia-b p{margin:.3rem 0}
-.ia-b ul,.ia-b ol{margin:.3rem 0;padding-left:1.2rem}
-.ia-b li{margin:.15rem 0}
+.ia-b ol{margin:.4rem 0;padding-left:1.2rem}
+/* Las viñetas son ahora la forma habitual de respuesta: punto propio y aire entre líneas */
+.ia-b ul{margin:.45rem 0 .2rem;padding-left:.95rem;list-style:none}
+.ia-b li{margin:.28rem 0}
+.ia-b ul>li{position:relative}
+.ia-b ul>li::before{content:"";position:absolute;left:-.72rem;top:.56em;width:4px;height:4px;border-radius:50%;
+  background:var(--ia-red);opacity:.55}
+.ia-m.user .ia-b ul>li::before{background:#fff;opacity:.7}
 .ia-b code{background:rgba(11,11,11,.06);border-radius:4px;padding:0 .25rem;font-size:.8em}
 .ia-b table.md{width:100%;font-size:.78rem;margin:.4rem 0}
 .ia-b table.md th,.ia-b table.md td{border-bottom:1px solid var(--ia-line);padding:.25rem .35rem;text-align:left}
