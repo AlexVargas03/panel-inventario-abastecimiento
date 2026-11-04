@@ -38,6 +38,11 @@ body.ia-closed #ia-handle::before{animation:ia-fab-halo 3.4s ease-out infinite}
 .ia-cara i,.ia-cabeza i,.ia-vuela i{display:block;width:7px;height:7px;border-radius:50%;background:#111;
   transform-origin:center;animation:ia-parpadeo 5.4s infinite}
 .ia-cabeza i,.ia-vuela i{width:5px;height:5px}
+/* Brillo blanco sobre la pupila: es lo que hace que la mirada parezca viva */
+.ia-cara i,.ia-cabeza i,.ia-vuela i{position:relative}
+.ia-cara i::after,.ia-cabeza i::after,.ia-vuela i::after{content:"";position:absolute;top:1px;right:1px;
+  width:2.4px;height:2.4px;border-radius:50%;background:#fff;opacity:.92}
+.ia-cabeza i::after,.ia-vuela i::after{top:.5px;right:.5px;width:1.8px;height:1.8px}
 /* Casi todo el ciclo con el ojo abierto; el parpadeo es un instante.
    Va en 'scale' y no en 'transform' para no pisar a 'translate', que lleva la mirada. */
 @keyframes ia-parpadeo{0%,93%,100%{scale:1}95.5%{scale:1 .1}}

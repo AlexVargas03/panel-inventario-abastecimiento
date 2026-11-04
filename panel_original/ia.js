@@ -557,24 +557,6 @@
       grid.appendChild(b);
     });
     wrap.appendChild(grid);
-
-    var items = (st.insights && st.insights.items) || [];
-    var hoy = document.createElement('div'); hoy.className = 'ia-today';
-    hoy.innerHTML = '<h5>Hoy destaca</h5>';
-    var ul = document.createElement('ul'); ul.className = 'ia-ins';
-    items.forEach(function (it) {
-      var li = document.createElement('li'); li.className = it.nivel || 'info'; li.title = it.pregunta ? 'Preguntar: ' + it.pregunta : '';
-      li.innerHTML = '<i></i><span>' + inline(it.texto) + '</span>';
-      if (it.pregunta) li.onclick = function () { preguntar(it.pregunta); };
-      ul.appendChild(li);
-    });
-    if (!items.length) { var li0 = document.createElement('li'); li0.className = 'ia-load'; li0.textContent = 'Calculando…'; ul.appendChild(li0); }
-    hoy.appendChild(ul);
-    var src = document.createElement('div'); src.className = 'ia-src';
-    src.textContent = st.insights && st.insights.fuente === 'ia' ? 'Claude · clic para profundizar' :
-      (st.insights && st.insights.fuente === 'cargando' ? 'Claude está preparando su análisis…' : 'Reglas sobre los datos actuales · clic para profundizar');
-    hoy.appendChild(src);
-    wrap.appendChild(hoy);
     return wrap;
   }
 
@@ -615,7 +597,7 @@
   }
 
   function pintar(forzar) {
-    var key = st.chat.length + '|' + (st.chat.length ? st.chat[st.chat.length - 1].id : '') + '|' + st.busy + '|' + (st.insights ? st.insights.fuente + st.insights.items.length : '') + '|' + (st.error || '');
+    var key = st.chat.length + '|' + (st.chat.length ? st.chat[st.chat.length - 1].id : '') + '|' + st.busy + '|' + (st.error || '');
     if (!forzar && key === st.vistoKey) return;
     st.vistoKey = key;
     var abajo = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 60;
@@ -662,10 +644,8 @@
     if (a.reiniciado) { st.busy = false; st.pending = null; }
     pintar(false);
     if (a.accion) aplicar(a.accion);
-    if (a.pedir_insights && st.iaOk && !st.insPedido && !st.busy) {
-      st.insPedido = true;
-      setTimeout(function () { if (!st.busy) enviar('insights'); }, 1500);
-    }
+    // La bienvenida ya no muestra insights, asi que no se piden a la API:
+    // seria una llamada de pago sin nada que mostrar.
   };
   document.body.classList.add('ia-on');
   pintar(true);
