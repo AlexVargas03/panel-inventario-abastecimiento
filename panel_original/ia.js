@@ -42,7 +42,7 @@
   /* ---------- Estructura ---------- */
   var panel = $('#ia-panel');
   panel.innerHTML =
-    '<div class="ia-hd"><button class="ia-cabeza" id="ia-cab" type="button" title="Cerrar el asistente" aria-label="Cerrar el asistente"><i></i><i></i></button>' +
+    '<div class="ia-hd"><span class="ia-cabeza" id="ia-cab" aria-hidden="true"><i></i><i></i></span>' +
     '<b class="ia-tt">Asistente<span class="ia-dot" id="ia-estado"></span></b>' +
     '<button class="ia-ico" id="ia-new" type="button" title="Nueva conversación" aria-label="Nueva conversación">' + IC.nuevo + '</button></div>' +
     '<p class="ia-warn" id="ia-warn" hidden></p>' +
@@ -50,7 +50,8 @@
     '<div class="ia-ft"><div class="ia-quick" id="ia-quick"></div>' +
     '<div class="ia-in"><textarea id="ia-txt" rows="1" placeholder="Pregunta por ventas, inventario, almacenes…" aria-label="Pregunta al asistente"></textarea>' +
     '<button class="ia-send" id="ia-send" type="button" title="Enviar" aria-label="Enviar">' + IC.enviar + '</button></div>' +
-    '<div class="ia-meta"><span id="ia-model">Claude</span><span id="ia-ctx"></span></div></div>';
+    '<div class="ia-meta"><span id="ia-model">Claude</span><span id="ia-ctx"></span></div></div>' +
+    '<button class="ia-lat" id="ia-lat" type="button" title="Cerrar el asistente" aria-label="Cerrar el asistente"><span></span></button>';
   var msgs = $('#ia-msgs'), txt = $('#ia-txt'), btn = $('#ia-send');
   var tip = document.createElement('div'); tip.className = 'ia-tip'; tip.hidden = true; document.body.appendChild(tip);
 
@@ -112,9 +113,29 @@
     }
   }
   $('#ia-handle').onclick = function () { abrir(!st.abierto, true); };
-  $('#ia-cab').onclick = function () { abrir(false, true); };
+  $('#ia-lat').onclick = function () { abrir(false, true); };
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && st.abierto) abrir(false, true); });
   $('#ia-new').onclick = function () { if (!st.busy) { window.stSend('streamlit:setComponentValue', { value: { id: nuevoId(), tipo: 'reiniciar' }, dataType: 'json' }); } };
+
+  /* Los ojos miran al puntero mientras la cabeza esta abajo. Se mueve el
+   * desplazamiento con la propiedad translate, que no pisa el parpadeo (scale). */
+  var ALCANCE = 2.8;   // px que se desplaza la pupila como maximo
+  function mirar(e) {
+    var h = $('#ia-handle');
+    if (!h || st.abierto || document.body.classList.contains('ia-volando')) return;
+    var r = h.getBoundingClientRect();
+    if (!r.width) return;
+    var dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+    var d = Math.sqrt(dx * dx + dy * dy) || 1;
+    var k = Math.min(1, d / 240) * ALCANCE;
+    h.style.setProperty('--ox', (dx / d * k).toFixed(2) + 'px');
+    h.style.setProperty('--oy', (dy / d * k).toFixed(2) + 'px');
+  }
+  document.addEventListener('mousemove', mirar, { passive: true });
+  document.addEventListener('mouseleave', function () {
+    var h = $('#ia-handle');
+    if (h) { h.style.setProperty('--ox', '0px'); h.style.setProperty('--oy', '0px'); }
+  });
   abrir(st.abierto);
   /* El panel se abre y se cierra solo con el botón circular: no se añade nada a la cabecera del dashboard */
 
