@@ -50,7 +50,7 @@
   var panel = $('#ia-panel');
   panel.innerHTML =
     '<div class="ia-hd"><span class="ia-cabeza" id="ia-cab" aria-hidden="true"><i></i><i></i></span>' +
-    '<b class="ia-tt">Asistente<span class="ia-dot" id="ia-estado"></span></b>' +
+    '<div class="ia-tt"><b>Asistente</b><small><span class="ia-dot" id="ia-estado"></span><span id="ia-sub">En línea</span></small></div>' +
     '<button class="ia-ico" id="ia-new" type="button" title="Nueva conversación" aria-label="Nueva conversación">' + IC.nuevo + '</button></div>' +
     '<p class="ia-warn" id="ia-warn" hidden></p>' +
     '<div id="ia-msgs" aria-live="polite"></div>' +
@@ -783,7 +783,9 @@
     if (st.error) { var e = burbuja('assistant'); e.b.style.borderColor = '#e8b4b4'; e.b.textContent = st.error; msgs.appendChild(e.m); }
     btn.disabled = st.busy; txt.disabled = st.busy;
     var es = $('#ia-estado');
-    if (es) { es.title = !st.iaOk ? 'Sin clave de API' : (st.busy ? 'Analizando…' : 'En línea'); es.classList.toggle('off', !st.iaOk); }
+    var estado = !st.iaOk ? 'Sin conexión con Claude' : (st.busy ? 'Escribiendo…' : 'En línea');
+    if (es) { es.title = estado; es.classList.toggle('off', !st.iaOk); }
+    var sub = $('#ia-sub'); if (sub && sub.textContent !== estado) sub.textContent = estado;
     panel.classList.toggle('ia-working', st.busy);   // el anillo del logo late solo mientras trabaja
     panel.classList.toggle('ia-saludo', !st.chat.length);   // con la bienvenida, la cabeza esta abajo y no en la cabecera
     if (G.ocupado && !st.busy) {
@@ -808,7 +810,8 @@
     st.iaOk = !!a.ia_ok;
     $('#ia-model').textContent = a.modelo ? 'Claude · ' + a.modelo : 'Claude';
     var w = $('#ia-warn');
-    w.hidden = !!a.ia_ok; w.textContent = a.ia_ok ? '' : '⚠ Falta ANTHROPIC_API_KEY en los Secrets: el chat está desactivado.';
+    w.hidden = !!a.ia_ok;
+    w.innerHTML = a.ia_ok ? '' : IC.alerta + '<span><b>El chat está desactivado.</b> Falta la clave <code>ANTHROPIC_API_KEY</code> en los Secrets de la app.</span>';
     if (a.insights) st.insights = a.insights;
     if (Array.isArray(a.chat)) {
       var srv = a.chat;

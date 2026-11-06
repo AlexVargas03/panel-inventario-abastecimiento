@@ -520,3 +520,49 @@ body[data-gesto="pensando"] .ia-cabeza i{animation:ia-piensa 1.8s ease-in-out in
   @keyframes ia-tres-suave{0%,70%,100%{background:#d4d1cb}35%{background:var(--ia-red)}}
   .ia-kbd,.ia-send svg{transition:none}
 }
+
+/* ---------- Cabecera con profundidad ----------
+   Degradado rojo con un brillo arriba a la izquierda y anillos tenues a la derecha:
+   da volumen sin añadir texto ni logos. */
+.ia-hd{overflow:hidden;isolation:isolate;padding:.85rem .85rem .85rem 1rem;gap:.7rem;
+  background:
+    radial-gradient(120% 140% at 0% 0%,rgba(255,255,255,.2) 0%,rgba(255,255,255,0) 45%),
+    linear-gradient(135deg,#cf2430 0%,#b3151f 55%,#8f0d16 100%)}
+.ia-hd::before{content:"";position:absolute;z-index:-1;right:-46px;top:-60px;width:190px;height:190px;border-radius:50%;
+  background:radial-gradient(circle,transparent 38%,rgba(255,255,255,.07) 39%,rgba(255,255,255,.07) 52%,transparent 53%,
+    transparent 64%,rgba(255,255,255,.05) 65%,rgba(255,255,255,.05) 76%,transparent 77%)}
+.ia-hd::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:rgba(0,0,0,.12)}
+
+/* La cabeza descansa en un zócalo de cristal; durante la bienvenida el zócalo
+   queda vacío esperando a que suba: el hueco se lee como intencional */
+#ia-cab{width:34px;height:34px;gap:7px;box-shadow:0 0 0 3px rgba(255,255,255,.16),0 4px 10px rgba(0,0,0,.2)}
+#ia-cab i{width:5.5px;height:5.5px}
+.ia-saludo #ia-cab,body.ia-subiendo #ia-cab{visibility:visible;background:rgba(255,255,255,.1);
+  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.32)}
+.ia-saludo #ia-cab i,body.ia-subiendo #ia-cab i{opacity:0}
+body.ia-volando .ia-saludo #ia-cab{visibility:visible}
+
+.ia-tt{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:.2rem;line-height:1.2}
+.ia-tt b{font-size:1rem;font-weight:650;letter-spacing:-.2px}
+.ia-tt small{display:flex;align-items:center;gap:.35rem;font-size:.68rem;font-weight:500;color:rgba(255,255,255,.78)}
+.ia-dot{width:7px;height:7px;box-shadow:0 0 0 2.5px rgba(92,224,143,.28)}
+.ia-dot.off{box-shadow:0 0 0 2.5px rgba(255,209,102,.28)}
+
+/* Botón de nueva conversación: círculo de cristal */
+.ia-hd .ia-ico{width:34px;height:34px;border-radius:50%;color:#fff;
+  background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);
+  transition:background-color .18s ease,transform .16s var(--ia-ease)}
+.ia-hd .ia-ico svg{width:15px;height:15px;transition:rotate .35s var(--ia-ease)}
+@media (hover:hover) and (pointer:fine){
+  .ia-hd .ia-ico:hover{background:rgba(255,255,255,.22);transform:none}
+  .ia-hd .ia-ico:hover svg{rotate:-50deg}
+}
+.ia-hd .ia-ico:active{transform:scale(.94)}
+
+/* Aviso sin clave: tarjeta suave, no una franja */
+.ia-warn{display:flex;align-items:flex-start;gap:.5rem;margin:.7rem .75rem 0;padding:.6rem .75rem;border-radius:14px;
+  background:#fff8e8;border:1px solid #f2dfae;border-bottom-width:1px;color:#6e4a00;font-size:.74rem;line-height:1.4}
+.ia-warn[hidden]{display:none}
+.ia-warn svg{width:15px;height:15px;flex:none;margin-top:.05rem;color:#b07a00}
+.ia-warn code{font-size:.68rem;background:rgba(176,122,0,.1);border-radius:5px;padding:.05rem .3rem}
+@media (prefers-reduced-motion:reduce){.ia-hd .ia-ico svg{transition:none}}
