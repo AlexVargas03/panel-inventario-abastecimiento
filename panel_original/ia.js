@@ -29,7 +29,13 @@
     cerrar: svg('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>'),
     ok: svg('<polyline points="20 6 9 17 4 12"/>'),
     enviar: svg('<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>'),
-    descarga: svg('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>')
+    descarga: svg('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'),
+    alerta: svg('<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'),
+    info: svg('<circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="8" x2="12.01" y2="8"/>'),
+    critico: svg('<circle cx="12" cy="12" r="9"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>'),
+    sube: svg('<polyline points="6 15 12 9 18 15"/>'),
+    baja: svg('<polyline points="6 9 12 15 18 9"/>'),
+    flecha: svg('<line x1="5" y1="12" x2="19" y2="12"/><polyline points="13 6 19 12 13 18"/>')
   };
 
   IDEAS = [
@@ -285,6 +291,83 @@
     };
     return el;
   }
+
+  /* ---------- Tarjetas de KPI ----------
+   * { type:'kpis', items:[{ label, valor, fmt, delta, bueno:'sube'|'baja', nota }] }
+   * El delta lleva flecha y signo, no solo color: se entiende tambien sin distinguir verde de rojo. */
+  function bloqueKpis(b) {
+    var el = document.createElement('div'); el.className = 'ia-kpis';
+    var items = (b.items || []).slice(0, 4);
+    el.style.setProperty('--n', Math.min(items.length, 2) || 1);
+    el.innerHTML = items.map(function (k) {
+      var d = '';
+      if (typeof k.delta === 'number' && isFinite(k.delta)) {
+        var sube = k.delta >= 0, bien = (k.bueno || 'sube') === 'sube' ? sube : !sube;
+        d = '<span class="ia-delta ' + (k.delta === 0 ? 'neu' : bien ? 'bien' : 'mal') + '">' + (sube ? IC.sube : IC.baja) +
+          (sube ? '+' : '') + d3.format('.1%')(k.delta) + '</span>';
+      }
+      return '<div class="ia-kpi"><small>' + esc(k.label) + '</small><b>' + esc(fmt(k.valor, k.fmt)) + '</b>' +
+        '<div class="ia-kpi-p">' + d + (k.nota ? '<span>' + esc(k.nota) + '</span>' : '') + '</div></div>';
+    }).join('');
+    return el;
+  }
+
+  /* ---------- Alertas ----------
+   * { type:'alertas', titulo, items:[{ nivel:'critico'|'alerta'|'info', titulo, detalle }] }
+   * Cada nivel lleva icono y palabra propios: el color nunca va solo. */
+  var NIVEL = { critico: ['Crítico', 'critico'], alerta: ['Atención', 'alerta'], info: ['Info', 'info'] };
+  function bloqueAlertas(b) {
+    var el = document.createElement('div'); el.className = 'ia-blk ia-al';
+    var items = b.items || [];
+    var head = '<div class="ia-blk-h">' + IC.alerta + '<span>' + esc(b.titulo || 'Alertas') + '</span>' +
+      '<em>' + items.length + '</em></div>';
+    el.innerHTML = head + '<ul>' + items.map(function (a) {
+      var n = NIVEL[a.nivel] || NIVEL.info;
+      return '<li class="n-' + n[1] + '"><i>' + IC[n[1]] + '</i><div><b>' + esc(a.titulo) + '</b>' +
+        (a.detalle ? '<span>' + esc(a.detalle) + '</span>' : '') + '</div><small>' + n[0] + '</small></li>';
+    }).join('') + '</ul>';
+    return el;
+  }
+
+  /* ---------- Ficha de producto ----------
+   * { type:'ficha', titulo, sub, etiquetas:['A','X'], datos:[{ label, valor, fmt }], cobertura:{ dias, objetivo } } */
+  function bloqueFicha(b) {
+    var el = document.createElement('div'); el.className = 'ia-blk ia-fi';
+    var tags = (b.etiquetas || []).map(function (t) { return '<span class="ia-tag">' + esc(t) + '</span>'; }).join('');
+    var datos = (b.datos || []).map(function (d) {
+      return '<div><small>' + esc(d.label) + '</small><b>' + esc(fmt(d.valor, d.fmt)) + '</b></div>';
+    }).join('');
+    var cob = '';
+    if (b.cobertura && typeof b.cobertura.dias === 'number') {
+      var dias = b.cobertura.dias, obj = b.cobertura.objetivo || 30;
+      var tope = Math.max(obj * 2, dias), pc = Math.min(100, dias / tope * 100), po = obj / tope * 100;
+      var est = dias < obj * 0.5 ? 'mal' : dias > obj * 1.8 ? 'alto' : 'bien';
+      var txt = est === 'mal' ? 'Riesgo de quiebre' : est === 'alto' ? 'Sobrestock' : 'En rango';
+      cob = '<div class="ia-cob ' + est + '"><div class="ia-cob-t"><small>Cobertura</small><b>' + d3.format(',.0f')(dias) +
+        ' días</b><span>' + txt + '</span></div><div class="ia-cob-b"><i style="--p:' + (pc / 100).toFixed(3) + '"></i>' +
+        '<u style="left:' + po.toFixed(1) + '%" title="Objetivo: ' + obj + ' días"></u></div></div>';
+    }
+    el.innerHTML = '<div class="ia-fi-h"><span class="ia-fi-ic">' + IC.caja + '</span><div><b>' + esc(b.titulo) + '</b>' +
+      (b.sub ? '<small>' + esc(b.sub) + '</small>' : '') + '</div>' + (tags ? '<div class="ia-tags">' + tags + '</div>' : '') + '</div>' +
+      (datos ? '<div class="ia-fi-d">' + datos + '</div>' : '') + cob;
+    return el;
+  }
+
+  /* ---------- Botones de acción (siguiente paso) ----------
+   * { type:'acciones', items:[{ texto, pregunta }] } — al pulsar se envía la pregunta tal cual */
+  function bloqueAcciones(b) {
+    var el = document.createElement('div'); el.className = 'ia-sig';
+    (b.items || []).slice(0, 3).forEach(function (a) {
+      var x = document.createElement('button'); x.type = 'button'; x.className = 'ia-chip';
+      x.innerHTML = '<span>' + esc(a.texto) + '</span>' + IC.flecha;
+      x.title = a.pregunta || a.texto;
+      x.onclick = function () { preguntar(a.pregunta || a.texto); };
+      el.appendChild(x);
+    });
+    return el;
+  }
+
+  var BLOQUES = { table: bloqueTabla, kpis: bloqueKpis, alertas: bloqueAlertas, ficha: bloqueFicha, acciones: bloqueAcciones };
 
   /* ---------- Gráficos (d3) ---------- */
   function showTip(e, html) { tip.innerHTML = html; tip.hidden = false; tip.style.left = (e.clientX + 12) + 'px'; tip.style.top = (e.clientY - 28) + 'px'; }
@@ -567,7 +650,7 @@
 
     // Cada pieza es una fabrica: se construye en el momento de colgarla
     var piezas = (m.bloques || []).map(function (b) {
-      return function () { return b.type === 'table' ? bloqueTabla(b) : bloqueGrafico(b, false); };
+      return function () { return BLOQUES[b.type] ? BLOQUES[b.type](b) : bloqueGrafico(b, false); };
     });
     if (m.accion_desc && m.accion_desc.length) piezas.push(function () {
       var a = document.createElement('div'); a.className = 'ia-act';

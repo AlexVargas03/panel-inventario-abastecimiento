@@ -8,6 +8,8 @@ y puede mover los filtros y pestañas del dashboard. Herramientas:
   - generate_dynamic_chart: dibuja un gráfico en el chat o en el dashboard.
   - controlar_dashboard: cambia pestaña, periodo, proveedor, empresa, top N, filtros de obsoleto y planificador.
   - simular_descuento / planificar_compra: las calculadoras de la pestaña Planificación.
+  - mostrar_kpis / mostrar_alertas / mostrar_ficha: tarjetas de cifras, alertas por nivel y ficha de un producto.
+  - sugerir_acciones: botones con las siguientes preguntas, que el usuario envía con un clic.
 """
 from __future__ import annotations
 
@@ -395,7 +397,142 @@ HERRAMIENTAS = [
             "meta_venta_mes": {"type": "number"}, "meses": {"type": "integer"}, "margen": {"type": "number", "description": "fracción (0.09 = 9 %)"},
             "dias_cierre": {"type": "number"}}, "required": ["meta_venta_mes", "meses", "margen", "dias_cierre"]},
     },
+    {
+        "name": "mostrar_kpis",
+        "description": "Muestra en el chat de 2 a 4 tarjetas con cifras grandes y su variación. Para preguntas de resumen o estado (\"¿cómo vamos?\", \"¿cómo cerró junio?\"). "
+                       "Los valores tienen que salir de otra herramienta en este mismo turno: nunca los inventes.",
+        "input_schema": {"type": "object", "properties": {
+            "items": {"type": "array", "minItems": 2, "maxItems": 4, "items": {"type": "object", "properties": {
+                "label": {"type": "string", "description": "Nombre corto, máx. 3 palabras"},
+                "valor": {"type": "number"},
+                "fmt": {"type": "string", "enum": ["money", "pct", "int", "dec1"], "description": "money = soles, pct = fracción (0.087 = 8,7 %), int = entero, dec1 = un decimal"},
+                "delta": {"type": "number", "description": "Variación RELATIVA en fracción frente al periodo de comparación (0.041 = +4,1 %). Omítela si no hay comparación. Para un margen %, mejor pon la diferencia en puntos en 'nota'"},
+                "bueno": {"type": "string", "enum": ["sube", "baja"], "description": "Qué dirección es buena: 'baja' para quiebres, días de inventario, obsoleto, costo"},
+                "nota": {"type": "string", "description": "Contexto corto: 'vs mayo', '−0,8 pts vs mayo'"}},
+                "required": ["label", "valor", "fmt"]}}},
+            "required": ["items"]},
+    },
+    {
+        "name": "mostrar_alertas",
+        "description": "Muestra en el chat una lista corta de alertas por nivel (crítico, atención, info). Para riesgos concretos que el usuario debe atender: quiebres, sobrestock, almacenes por llenarse, obsoleto. "
+                       "Usa los umbrales de las reglas del negocio para decidir el nivel.",
+        "input_schema": {"type": "object", "properties": {
+            "titulo": {"type": "string", "description": "Ej: 'Para revisar hoy'"},
+            "items": {"type": "array", "minItems": 1, "maxItems": 6, "items": {"type": "object", "properties": {
+                "nivel": {"type": "string", "enum": ["critico", "alerta", "info"]},
+                "titulo": {"type": "string", "description": "Qué es: producto, proveedor o almacén"},
+                "detalle": {"type": "string", "description": "Por qué, con la cifra, en una línea"}},
+                "required": ["nivel", "titulo"]}}},
+            "required": ["items"]},
+    },
+    {
+        "name": "mostrar_ficha",
+        "description": "Muestra en el chat la ficha de UN producto: nombre, SKU, proveedor, clase ABC-XYZ, hasta 6 datos y su cobertura en días. Para cuando el usuario pregunta por un producto concreto.",
+        "input_schema": {"type": "object", "properties": {
+            "titulo": {"type": "string", "description": "Nombre del producto"},
+            "sub": {"type": "string", "description": "'SKU 10234 · Proveedor'"},
+            "etiquetas": {"type": "array", "maxItems": 3, "items": {"type": "string"}, "description": "Ej: ['A','X'] o ['CZ']"},
+            "datos": {"type": "array", "maxItems": 6, "items": {"type": "object", "properties": {
+                "label": {"type": "string"}, "valor": {"type": ["number", "string"]}, "fmt": {"type": "string", "enum": ["money", "pct", "int", "dec1"], "description": "money = soles, pct = fracción (0.087 = 8,7 %), int = entero, dec1 = un decimal"}},
+                "required": ["label", "valor"]}},
+            "cobertura_dias": {"type": "number", "description": "Días de stock al ritmo de venta actual"},
+            "cobertura_objetivo": {"type": "number", "description": "Días objetivo (por defecto 30)"}},
+            "required": ["titulo"]},
+    },
+    {
+        "name": "sugerir_acciones",
+        "description": "Pone bajo tu respuesta de 1 a 3 botones con las siguientes preguntas más útiles. El usuario los pulsa y la pregunta se te envía tal cual.",
+        "input_schema": {"type": "object", "properties": {
+            "items": {"type": "array", "minItems": 1, "maxItems": 3, "items": {"type": "object", "properties": {
+                "texto": {"type": "string", "description": "Lo que dice el botón: 2 a 4 palabras, empieza por verbo o sustantivo ('Ver obsoletos', 'Comparar con TORU')"},
+                "pregunta": {"type": "string", "description": "La pregunta completa que se enviará, con el contexto necesario (periodo, proveedor, producto)"}},
+                "required": ["texto", "pregunta"]}}},
+            "required": ["items"]},
+    },
 ]
+
+FORMATOS_BLOQUE = {"money", "pct", "int", "dec1"}
+
+
+def _num(v):
+    """Número finito o None (el modelo a veces manda cifras como texto)."""
+    try:
+        x = float(str(v).replace(",", "")) if isinstance(v, str) else float(v)
+    except (TypeError, ValueError):
+        return None
+    return x if x == x and abs(x) != float("inf") else None
+
+
+def _txt(v, n: int = 120) -> str:
+    return str(v or "").strip()[:n]
+
+
+def bloque_kpis(a: dict) -> dict:
+    items = []
+    for k in (a.get("items") or [])[:4]:
+        valor = _num(k.get("valor"))
+        if valor is None or not _txt(k.get("label")):
+            continue
+        it = {"label": _txt(k["label"], 40), "valor": valor, "fmt": k.get("fmt") if k.get("fmt") in FORMATOS_BLOQUE else "int"}
+        d = _num(k.get("delta"))
+        if d is not None:
+            it["delta"] = d
+        if k.get("bueno") in ("sube", "baja"):
+            it["bueno"] = k["bueno"]
+        if _txt(k.get("nota")):
+            it["nota"] = _txt(k["nota"], 40)
+        items.append(it)
+    if not items:
+        raise ValueError("ningún KPI con label y valor numérico")
+    return {"type": "kpis", "items": items}
+
+
+def bloque_alertas(a: dict) -> dict:
+    items = [{"nivel": x.get("nivel") if x.get("nivel") in ("critico", "alerta", "info") else "info",
+              "titulo": _txt(x.get("titulo"), 80), "detalle": _txt(x.get("detalle"), 140)}
+             for x in (a.get("items") or [])[:6] if _txt(x.get("titulo"))]
+    if not items:
+        raise ValueError("ninguna alerta con título")
+    orden = {"critico": 0, "alerta": 1, "info": 2}
+    items.sort(key=lambda x: orden[x["nivel"]])          # lo más grave arriba
+    return {"type": "alertas", "titulo": _txt(a.get("titulo"), 60) or "Alertas", "items": items}
+
+
+def bloque_ficha(a: dict) -> dict:
+    if not _txt(a.get("titulo")):
+        raise ValueError("falta el nombre del producto")
+    datos = []
+    for d in (a.get("datos") or [])[:6]:
+        if not _txt(d.get("label")):
+            continue
+        n = _num(d.get("valor")) if not isinstance(d.get("valor"), str) or d.get("fmt") else None
+        if n is not None:
+            datos.append({"label": _txt(d["label"], 30), "valor": n, "fmt": d.get("fmt") if d.get("fmt") in FORMATOS_BLOQUE else "int"})
+        else:
+            datos.append({"label": _txt(d["label"], 30), "valor": _txt(d.get("valor"), 30)})
+    b = {"type": "ficha", "titulo": _txt(a["titulo"], 90), "sub": _txt(a.get("sub"), 90),
+         "etiquetas": [_txt(t, 4) for t in (a.get("etiquetas") or [])[:3] if _txt(t)], "datos": datos}
+    dias = _num(a.get("cobertura_dias"))
+    if dias is not None and dias >= 0:
+        b["cobertura"] = {"dias": dias, "objetivo": _num(a.get("cobertura_objetivo")) or 30}
+    return b
+
+
+def bloque_acciones(a: dict) -> dict:
+    items = [{"texto": _txt(x.get("texto"), 32), "pregunta": _txt(x.get("pregunta"), 300) or _txt(x.get("texto"), 32)}
+             for x in (a.get("items") or [])[:3] if _txt(x.get("texto"))]
+    if not items:
+        raise ValueError("ningún botón con texto")
+    return {"type": "acciones", "items": items}
+
+
+BLOQUES_SIMPLES = {"mostrar_kpis": bloque_kpis, "mostrar_alertas": bloque_alertas, "mostrar_ficha": bloque_ficha, "sugerir_acciones": bloque_acciones}
+
+
+def ordenar_bloques(bloques: list[dict]) -> list[dict]:
+    """Los botones de siguiente paso van siempre al final, y solo un grupo (el último)."""
+    acciones = [b for b in bloques if b.get("type") == "acciones"]
+    return [b for b in bloques if b.get("type") != "acciones"] + acciones[-1:]
 
 REGLAS = """Reglas del negocio:
 - Moneda: soles (S/). La venta del sell out es CON IGV; el costo se compara con IGV (costo sin IGV × 1.18). Margen = venta − costo con IGV; margen % = margen ÷ venta.
@@ -454,6 +591,14 @@ Cómo trabajar:
 - Nunca inventes cifras: sácalas con las herramientas.
 - Cuando el usuario pida datos, listas o comparaciones, muéstralos con query_business_database o mostrar_tabla (el usuario ve la tabla en el chat; no la repitas entera en tu texto, comenta lo importante).
 - Si una tendencia o comparación se entiende mejor en gráfico, usa generate_dynamic_chart (destino 'chat'; usa 'dashboard' solo si el usuario pide verlo en el dashboard).
+- Elige la forma según la pregunta, no por costumbre:
+  · resumen o estado ("¿cómo vamos?", "¿cómo cerró el mes?") → mostrar_kpis con 2 a 4 cifras, comparadas con el periodo anterior cuando lo tengas.
+  · riesgos que atender (quiebres, sobrestock, almacén por llenarse, obsoleto que crece) → mostrar_alertas, lo más grave primero.
+  · un producto concreto → mostrar_ficha.
+  · listas y detalle → tabla; evolución o comparación → gráfico.
+- No amontones: como mucho dos bloques de datos por respuesta. Una pregunta simple se responde con texto.
+- Las cifras de cualquier bloque salen de otra herramienta en este mismo turno; si no las tienes, consúltalas antes.
+- Cuando haya siguientes pasos claros, ponlos con sugerir_acciones (1 a 3 botones) en vez de escribirlos. Cada pregunta del botón tiene que entenderse sola, con su periodo, proveedor o producto. En ese caso no cierres además con una propuesta en el texto.
 - Mueve el dashboard por tu cuenta, sin esperar a que te lo pidan. Si lo que respondes se puede ver ahí, llévalo tú con controlar_dashboard en el mismo turno. Que el usuario tenga que pedírtelo aparte es un fallo tuyo.
 - Qué vista corresponde a cada tema:
   · venta, sell out, proveedores, margen por mes, tickets, unidades → pestaña "panel" (ajusta además periodo_desde/periodo_hasta, proveedor o top_proveedores según lo que te pregunten).
@@ -476,7 +621,7 @@ Cómo responder (esto importa tanto como el dato):
 - Nada de encabezados tipo "Lectura:", "Resumen:", "Análisis:" ni secciones numeradas. Es una conversación, no un informe.
 - Habla como un colega que conoce el negocio: cercano y directo, sin jerga ni solemnidad. Puedes decir "ojo con", "lo raro aquí es", "esto sí llama la atención".
 - Si los datos no permiten responder, dilo en una frase y ofrece lo más cercano.
-- Cierra con UNA sola propuesta concreta de siguiente paso, y solo si aporta de verdad. Nunca dos.
+- Cierra con UNA sola propuesta concreta de siguiente paso, y solo si aporta de verdad. Nunca dos. Si ya pusiste botones con sugerir_acciones, no la escribas.
 - Montos S/ 1,234,567; en prosa, cifras grandes como S/ 3.97 millones. Porcentajes con un decimal.
 
 Cómo conversar (es una conversación seguida, no preguntas sueltas):
@@ -572,6 +717,9 @@ class Sesion:
                 return "Gráfico mostrado en la tarjeta 'Análisis de IA' del dashboard."
             self.bloques.append(spec)
             return "Gráfico mostrado en el chat."
+        if nombre in BLOQUES_SIMPLES:
+            self.bloques.append(BLOQUES_SIMPLES[nombre](a))
+            return "Mostrado al usuario en el chat. No repitas en tu texto lo que ya enseña."
         if nombre == "controlar_dashboard":
             return self._controlar(a)
         if nombre == "simular_descuento":
@@ -717,7 +865,7 @@ def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: d
         msgs.append({"role": "user", "content": res})
     else:
         texto = texto or "Necesité demasiados pasos. Prueba con una pregunta más específica."
-    return {"texto": texto or "(sin respuesta)", "bloques": sesion.bloques, "accion": sesion.accion,
+    return {"texto": texto or "(sin respuesta)", "bloques": ordenar_bloques(sesion.bloques), "accion": sesion.accion,
             "consultas": sesion.consultas}, msgs
 
 
