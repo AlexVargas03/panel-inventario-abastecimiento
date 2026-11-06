@@ -95,7 +95,9 @@
     var r = el.getBoundingClientRect(), x = r.left;
     if (document.body.classList.contains('ia-closed')) {
       // el panel está fuera de pantalla: se traslada a su posición final
-      x = r.left - panel.getBoundingClientRect().left + (window.innerWidth - panel.offsetWidth);
+      // --ia-gap = aire entre el panel flotante y el borde de la ventana
+      var gap = parseFloat(getComputedStyle(panel).getPropertyValue('--ia-gap')) || 0;
+      x = r.left - panel.getBoundingClientRect().left + (window.innerWidth - panel.offsetWidth - gap);
     }
     return { x: x, y: r.top, ancho: el.offsetWidth || r.width };
   }
@@ -709,7 +711,7 @@
   }
   /* Bienvenida: saludo corto + ideas puntuales + lo que destaca hoy (sin párrafos largos) */
   function bienvenida() {
-    var wrap = document.createElement('div');
+    var wrap = document.createElement('div'); wrap.className = 'ia-bienv';   // ocupa todo el alto y centra el saludo
 
     var hero = document.createElement('div'); hero.className = 'ia-hero';
     hero.innerHTML = '<span class="ia-cabeza ia-grande" id="ia-hcab" aria-hidden="true"><i></i><i></i></span><h3>Hola, soy tu asistente</h3>' +

@@ -430,3 +430,41 @@ body[data-gesto="pensando"] .ia-cabeza i{animation:ia-piensa 1.8s ease-in-out in
   body[data-gesto="pensando"] .ia-cabeza i,body[data-gesto="sueno"] #ia-handle .ia-cara{animation:none}
   .ia-cara,.ia-cabeza{transition:none}
 }
+
+/* ---------- Panel flotante: tarjeta curva con sombra (solo escritorio) ---------- */
+@media (min-width:901px){
+  :root{--ia-gap:12px;--ia-r:24px}
+  #ia-panel{height:calc(100% - 2 * var(--ia-gap));margin:var(--ia-gap) var(--ia-gap) var(--ia-gap) 4px;
+    border:0;border-radius:var(--ia-r);
+    box-shadow:0 0 0 1px rgba(11,11,11,.05),0 8px 24px rgba(0,0,0,.07),0 28px 64px -16px rgba(90,12,18,.26)}
+  /* cerrado sale entero por la derecha, márgenes incluidos */
+  body.ia-closed #ia-panel{margin-right:calc(-1 * var(--ia-w) - 4px)}
+  .ia-hd{border-radius:var(--ia-r) var(--ia-r) 0 0;padding:.8rem .8rem .8rem 1.05rem}
+  .ia-ft{border-radius:0 0 var(--ia-r) var(--ia-r);border-top:0;padding:.5rem .85rem .75rem;
+    box-shadow:0 -10px 20px -14px rgba(0,0,0,.12)}
+  .ia-lat{left:-25px}
+}
+
+/* Curvas más generosas en todo el panel */
+.ia-b{border-radius:18px}
+.ia-m.assistant .ia-b{border-bottom-left-radius:6px}
+.ia-m.user .ia-b{border-bottom-right-radius:6px}
+.ia-blk,.ia-kpi{border-radius:14px}
+.ia-idea{border-radius:16px;padding:.7rem .75rem;box-shadow:0 1px 2px rgba(0,0,0,.04),0 4px 14px -6px rgba(0,0,0,.08)}
+.ia-in{border-radius:22px;padding:.4rem .4rem .4rem .95rem;background:#fff;
+  box-shadow:0 1px 2px rgba(0,0,0,.04),0 6px 18px -8px rgba(0,0,0,.14)}
+.ia-send{border-radius:50%;width:36px;height:36px}
+
+/* ---------- Bienvenida a pantalla completa ---------- */
+/* Ocupa todo el alto del chat y centra el saludo; con el primer mensaje desaparece */
+.ia-bienv{flex:1 0 auto;display:flex;flex-direction:column;justify-content:center;padding:0 .3rem 6vh}
+.ia-saludo #ia-msgs{background:radial-gradient(90% 55% at 50% 36%,#fff1f2 0%,rgba(255,241,242,0) 70%),var(--ia-bg)}
+.ia-bienv .ia-hero{padding:0 .2rem}
+.ia-bienv .ia-hero h3{font-size:1.6rem;letter-spacing:-.6px}
+.ia-bienv .ia-hero p{font-size:.92rem;margin-top:.4rem}
+.ia-cabeza.ia-grande{width:78px;height:78px;gap:15px;margin:0 auto 1.1rem;
+  box-shadow:0 14px 34px rgba(179,21,31,.24),0 0 0 12px rgba(179,21,31,.06),0 0 0 26px rgba(179,21,31,.03)}
+.ia-grande i{width:11px;height:11px}
+.ia-grande i::after{top:2px;right:2px;width:3.6px;height:3.6px}
+.ia-grande{--k:2.1}
+.ia-bienv .ia-ideas{margin-top:1.6rem;gap:.55rem}
