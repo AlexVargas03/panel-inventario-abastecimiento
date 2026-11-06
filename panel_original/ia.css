@@ -36,8 +36,10 @@ body.ia-closed #ia-handle::before{animation:ia-fab-halo 3.4s ease-out infinite}
 /* La cara: dos ojos negros que parpadean de vez en cuando */
 #ia-handle .ia-cara{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:10px}
 .ia-cara i,.ia-cabeza i,.ia-vuela i{display:block;width:7px;height:7px;border-radius:50%;background:#111;
-  transform-origin:center;animation:ia-parpadeo 5.4s infinite}
-.ia-cabeza i,.ia-vuela i{width:5px;height:5px}
+  transform-origin:center;
+  transition:scale .07s ease-out,clip-path .22s var(--ia-ease),translate .28s var(--ia-ease)}
+.ia-cabeza i{width:5px;height:5px}
+.ia-vuela i{width:var(--ojo,5px);height:var(--ojo,5px)}
 /* Brillo blanco sobre la pupila: es lo que hace que la mirada parezca viva */
 .ia-cara i,.ia-cabeza i,.ia-vuela i{position:relative}
 .ia-cara i::after,.ia-cabeza i::after,.ia-vuela i::after{content:"";position:absolute;top:1px;right:1px;
@@ -47,14 +49,15 @@ body.ia-closed #ia-handle::before{animation:ia-fab-halo 3.4s ease-out infinite}
    Va en 'scale' y no en 'transform' para no pisar a 'translate', que lleva la mirada. */
 @keyframes ia-parpadeo{0%,93%,100%{scale:1}95.5%{scale:1 .1}}
 /* La pupila se desplaza hacia el puntero; el JS escribe --ox / --oy */
-#ia-handle .ia-cara i{translate:var(--ox,0) var(--oy,0);transition:translate .13s ease-out}
+#ia-handle .ia-cara i{translate:calc(var(--ox,0px) + var(--gx,0px) * 1.5) calc(var(--oy,0px) + var(--gy,0px) * 1.5);
+  transition:scale .07s ease-out,clip-path .22s var(--ia-ease),translate .13s ease-out}
 
 /* La misma cabeza, ya posada en la cabecera: cierra el asistente */
-.ia-cabeza{position:relative;width:30px;height:30px;flex:none;border:0;padding:0;cursor:pointer;border-radius:50%;
+.ia-cabeza{position:relative;width:30px;height:30px;flex:none;border:0;padding:0;cursor:default;border-radius:50%;
   display:flex;align-items:center;justify-content:center;gap:6px;
   background:radial-gradient(120% 120% at 30% 20%,#ffffff 0%,#ffe3e4 55%,#ffc9cb 100%);
   box-shadow:0 2px 8px rgba(0,0,0,.18);transition:transform .16s var(--ia-ease)}
-.ia-cabeza:active{transform:scale(.94)}
+
 body.ia-volando .ia-cabeza,body.ia-volando #ia-handle{visibility:hidden}
 /* Abierto el chat, la cabeza ya no esta abajo: se ha ido arriba */
 body:not(.ia-closed) #ia-handle{visibility:hidden;pointer-events:none}
@@ -382,4 +385,48 @@ body.ia-closed .ia-lat,body.ia-volando .ia-lat{opacity:0;pointer-events:none}
 @media (prefers-reduced-motion:reduce){
   .ia-kpis .ia-kpi{animation:ia-fade .2s ease both!important}
   .ia-cob-b i{animation:none}
+}
+
+/* ---------- Cabeza en la bienvenida ---------- */
+.ia-cabeza.ia-grande{width:60px;height:60px;gap:12px;margin:0 auto .75rem;
+  box-shadow:0 10px 26px rgba(179,21,31,.22),0 0 0 10px rgba(179,21,31,.06)}
+.ia-grande i{width:9px;height:9px}
+.ia-grande i::after{top:1.5px;right:1.5px;width:3px;height:3px}
+/* Mientras está la bienvenida, la cabeza vive abajo y la de la cabecera no se ve */
+.ia-saludo #ia-cab,body.ia-subiendo #ia-cab{visibility:hidden}
+
+/* ---------- Gestos ----------
+   Cada propiedad lleva una cosa: scale = parpadeo/sorpresa, clip-path = párpados,
+   translate = mirada, rotate (en la cabeza) = ladeo. Así se combinan sin pisarse. */
+.ia-cabeza i{translate:calc(var(--gx,0px) * var(--k,1)) calc(var(--gy,0px) * var(--k,1))}
+.ia-grande{--k:1.7}
+.ia-cara,.ia-cabeza{transition:rotate .3s var(--ia-ease),transform .16s var(--ia-ease)}
+
+body.ia-parpadea :is(.ia-cara,.ia-cabeza) i,
+body.ia-guino :is(.ia-cara,.ia-cabeza) i:last-child{scale:1 .1}
+
+body[data-gesto="izq"]{--gx:-1.3px;--gy:0px}
+body[data-gesto="der"]{--gx:1.3px;--gy:0px}
+body[data-gesto="arriba"]{--gx:.4px;--gy:-1.4px}
+body[data-gesto="atento"]{--gx:-.3px;--gy:1.4px}
+
+body[data-gesto="feliz"] :is(.ia-cara,.ia-cabeza) i{clip-path:inset(0 0 52% 0);--gy:1px}
+body[data-gesto="feliz"] :is(.ia-cara,.ia-cabeza){rotate:-8deg}
+body[data-gesto="sorpresa"] :is(.ia-cara,.ia-cabeza) i{scale:1.35}
+body[data-gesto="triste"] :is(.ia-cara,.ia-cabeza) i{clip-path:inset(38% 0 0 0)}
+body[data-gesto="triste"]{--gy:1.2px}
+body[data-gesto="triste"] :is(.ia-cara,.ia-cabeza){rotate:4deg}
+body[data-gesto="sueno"] :is(.ia-cara,.ia-cabeza) i{clip-path:inset(58% 0 0 0);transition-duration:.07s,1.2s,.28s}
+body[data-gesto="sueno"] #ia-handle .ia-cara{animation:ia-respira 3.6s ease-in-out infinite}
+@keyframes ia-respira{50%{rotate:5deg}}
+
+/* Pensando: mira arriba y recorre de lado a lado, como quien busca algo */
+body[data-gesto="pensando"] .ia-cabeza i{animation:ia-piensa 1.8s ease-in-out infinite}
+@keyframes ia-piensa{
+  0%,100%{translate:calc(-1.3px * var(--k,1)) calc(-1.3px * var(--k,1))}
+  50%{translate:calc(1.3px * var(--k,1)) calc(-1.3px * var(--k,1))}}
+
+@media (prefers-reduced-motion:reduce){
+  body[data-gesto="pensando"] .ia-cabeza i,body[data-gesto="sueno"] #ia-handle .ia-cara{animation:none}
+  .ia-cara,.ia-cabeza{transition:none}
 }

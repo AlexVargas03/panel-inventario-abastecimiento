@@ -34,15 +34,24 @@ COLUMNAS = {
 ORIGEN = {"almacenes_real": "almacenes", "abc_xyz_nuevo": "abc_xyz"}
 
 
+def _sello() -> str:
+    """Huella de los archivos de la página: cambia con cada versión y obliga al navegador a bajarlos de nuevo."""
+    h = hashlib.sha1()
+    for n in ("base.css", "ia.css", "d3.min.js", "shim.js", "ia.js"):
+        h.update((CARPETA / n).read_bytes())
+    return h.hexdigest()[:10]
+
+
 def _armar_index() -> None:
     pagina = (CARPETA / "pagina.html").read_text(encoding="utf-8")
+    v = _sello()
     html = f"""<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Panel de Inventario y Abastecimiento</title>
-<link rel="stylesheet" href="base.css">
-<link rel="stylesheet" href="ia.css">
-<script src="d3.min.js"></script>
-<script src="shim.js"></script>
+<link rel="stylesheet" href="base.css?v={v}">
+<link rel="stylesheet" href="ia.css?v={v}">
+<script src="d3.min.js?v={v}"></script>
+<script src="shim.js?v={v}"></script>
 </head><body>
 <div id="ia-wrap">
 <main id="ia-main">
@@ -52,7 +61,7 @@ def _armar_index() -> None:
 <aside id="ia-panel" aria-label="Asistente IA"></aside>
 </div>
 <button id="ia-handle" type="button" title="Mostrar u ocultar el Asistente IA" aria-label="Mostrar u ocultar el Asistente IA">»</button>
-<script src="ia.js"></script>
+<script src="ia.js?v={v}"></script>
 </body></html>"""
     destino = CARPETA / "index.html"
     if not destino.exists() or destino.read_text(encoding="utf-8") != html:

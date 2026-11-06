@@ -63,13 +63,18 @@
 
   /* Lanza una copia de la cabeza de un sitio a otro. Si no se puede medir
    * (panel oculto, navegador sin layout), no vuela: el cambio ocurre igual. */
-  function volar(desde, hasta, destino, listo) {
-    var r1 = desde.getBoundingClientRect();
-    if (!r1.width || !destino || !destino.ancho) { listo(); return; }
+  function medir(el) {
+    if (!el || !el.isConnected) return null;
+    var r = el.getBoundingClientRect(), ojo = el.querySelector('i');
+    return r.width ? { left: r.left, top: r.top, width: r.width, height: r.height, ojo: (ojo && ojo.offsetWidth) || 6 } : null;
+  }
+  function volar(r1, destino, listo) {
+    if (!r1 || !r1.width || !destino || !destino.ancho) { listo(); return; }
     var copia = document.createElement('div');
     copia.className = 'ia-vuela';
     copia.innerHTML = '<i></i><i></i>';
-    copia.style.cssText = 'left:' + r1.left + 'px;top:' + r1.top + 'px;width:' + r1.width + 'px;height:' + r1.height + 'px';
+    copia.style.cssText = 'left:' + r1.left + 'px;top:' + r1.top + 'px;width:' + r1.width + 'px;height:' + r1.height + 'px;' +
+      '--ojo:' + r1.ojo + 'px;gap:' + Math.round(r1.ojo * 1.35) + 'px';
     document.body.appendChild(copia);
     var dx = destino.x - r1.left, dy = destino.y - r1.top, k = destino.ancho / r1.width;
     requestAnimationFrame(function () {
@@ -78,16 +83,21 @@
     setTimeout(function () { copia.remove(); listo(); }, 460);
   }
 
-  /* Dónde acabará la cabecera cuando el panel esté abierto, sin esperar a la transición */
-  function sitioCabecera() {
-    var cab = $('#ia-cab'), panel = $('#ia-panel');
-    if (!cab || !panel || !panel.offsetWidth) return null;
-    var r = cab.getBoundingClientRect(), ancho = cab.offsetWidth || 30;
+  /* La cabeza del panel vive en la bienvenida mientras no hay conversación; despues, en la cabecera */
+  function cabezaPanel() {
+    var h = $('#ia-hcab');
+    return h && h.isConnected ? h : $('#ia-cab');
+  }
+  /* Dónde quedará esa cabeza con el panel abierto, sin esperar a la transición */
+  function sitio(el) {
+    var panel = $('#ia-panel');
+    if (!el || !panel || !panel.offsetWidth) return null;
+    var r = el.getBoundingClientRect(), x = r.left;
     if (document.body.classList.contains('ia-closed')) {
-      // el panel está fuera de pantalla: se calcula su posición final
-      return { x: window.innerWidth - panel.offsetWidth + cab.offsetLeft, y: cab.offsetTop, ancho: ancho };
+      // el panel está fuera de pantalla: se traslada a su posición final
+      x = r.left - panel.getBoundingClientRect().left + (window.innerWidth - panel.offsetWidth);
     }
-    return { x: r.left, y: r.top, ancho: ancho };
+    return { x: x, y: r.top, ancho: el.offsetWidth || r.width };
   }
 
   function abrir(v, conVuelo) {
@@ -106,22 +116,94 @@
     }
 
     if (!conVuelo) { aplicar(); return; }
-    var cab = $('#ia-cab');
+    var cab = cabezaPanel();
     if (v) {
-      var destino = sitioCabecera();
+      var destino = sitio(cab), origen = medir(h);
       document.body.classList.add('ia-volando');          // oculta botón y cabeza durante el vuelo
       document.body.classList.remove('ia-closed');        // el panel entra a la vez
-      volar(h, cab, destino, aplicar);
+      volar(origen, destino, function () { aplicar(); gesto('feliz', 1500); });
     } else {
-      var r = h.getBoundingClientRect();
+      var r = h.getBoundingClientRect(), desde = medir(cab);
       document.body.classList.add('ia-volando');
-      volar(cab, h, { x: r.left, y: r.top, ancho: r.width || 54 }, aplicar);
+      volar(desde, { x: r.left, y: r.top, ancho: r.width || 54 }, aplicar);
     }
   }
   $('#ia-handle').onclick = function () { abrir(!st.abierto, true); };
   $('#ia-lat').onclick = function () { abrir(false, true); };
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && st.abierto) abrir(false, true); });
   $('#ia-new').onclick = function () { if (!st.busy) { window.stSend('streamlit:setComponentValue', { value: { id: nuevoId(), tipo: 'reiniciar' }, dataType: 'json' }); } };
+
+  /* ---------- Gestos de los ojos ----------
+   * Estado de fondo (lo que esta haciendo) + gestos breves encima (lo que siente).
+   *   pensando: mira arriba y de lado a lado mientras analiza
+   *   atento:   mira hacia abajo, a lo que escribes
+   *   sueno:    parpados a media asta si llevas rato sin mover el raton
+   *   feliz:    ojos cerrados en arco y cabeza ladeada (al abrir, al llegar la respuesta, al pasar el raton)
+   *   sorpresa: ojos grandes (al despertar)
+   *   triste:   parpados caidos (si algo falla)
+   *   izq/der/arriba: miradas sueltas cuando no pasa nada */
+  var G = { breve: null, t: null, dormido: false, quieto: 0 };
+  function base() {
+    if (st.busy) return 'pensando';
+    if (document.activeElement === txt && txt.value.trim()) return 'atento';
+    if (G.dormido && !st.abierto) return 'sueno';
+    return '';
+  }
+  function pintarGesto() { document.body.setAttribute('data-gesto', G.breve || base()); }
+  function gesto(nombre, ms) {
+    clearTimeout(G.t);
+    G.breve = nombre || null;
+    pintarGesto();
+    if (ms) G.t = setTimeout(function () { G.breve = null; pintarGesto(); }, ms);
+  }
+  pintarGesto();
+
+  /* Parpadeo con ritmo irregular: a veces doble, de vez en cuando un guiño */
+  function parpadear() {
+    var g = document.body.getAttribute('data-gesto');
+    if (g !== 'sueno' && g !== 'sorpresa' && g !== 'feliz') {
+      var guino = Math.random() < 0.08, doble = !guino && Math.random() < 0.22;
+      var cls = guino ? 'ia-guino' : 'ia-parpadea';
+      document.body.classList.add(cls);
+      setTimeout(function () { document.body.classList.remove(cls); }, guino ? 260 : 120);
+      if (doble) setTimeout(function () {
+        document.body.classList.add('ia-parpadea');
+        setTimeout(function () { document.body.classList.remove('ia-parpadea'); }, 110);
+      }, 240);
+    }
+    setTimeout(parpadear, 2200 + Math.random() * 4300);
+  }
+  setTimeout(parpadear, 1800);
+
+  /* Miradas sueltas cuando nadie interactua; sueño tras 30 s sin mover el raton */
+  function vagar() {
+    G.quieto += 1;
+    if (!G.dormido && !st.abierto && G.quieto >= 8) { G.dormido = true; pintarGesto(); }
+    if (!G.breve && !base() && G.quieto >= 1 && Math.random() < 0.55) {
+      gesto(['izq', 'der', 'arriba', 'izq', 'der'][Math.floor(Math.random() * 5)], 900 + Math.random() * 600);
+    }
+    setTimeout(vagar, 3500 + Math.random() * 1500);
+  }
+  setTimeout(vagar, 4000);
+  document.addEventListener('mousemove', function () {
+    G.quieto = 0;
+    if (G.dormido) { G.dormido = false; gesto('sorpresa', 650); }
+  }, { passive: true });
+  $('#ia-handle').addEventListener('mouseenter', function () { if (!st.abierto) gesto('feliz', 1100); });
+  txt.addEventListener('input', pintarGesto);
+  txt.addEventListener('focus', pintarGesto);
+  txt.addEventListener('blur', pintarGesto);
+
+  /* Con el primer mensaje, la cabeza de la bienvenida sube a la cabecera */
+  function subirCabeza(desde) {
+    var cab = $('#ia-cab');
+    if (!desde || !cab) return;
+    var r = cab.getBoundingClientRect();
+    document.body.classList.add('ia-subiendo');
+    volar(desde, { x: r.left, y: r.top, ancho: cab.offsetWidth || r.width }, function () {
+      document.body.classList.remove('ia-subiendo');
+    });
+  }
 
   /* Los ojos miran al puntero mientras la cabeza esta abajo. Se mueve el
    * desplazamiento con la propiedad translate, que no pisa el parpadeo (scale). */
@@ -166,12 +248,14 @@
   function preguntar(t) {
     t = String(t || '').trim();
     if (!t || st.busy) return;
+    var subir = st.chat.length ? null : medir($('#ia-hcab'));
     if (!st.iaOk) { st.error = 'El asistente no está configurado: falta ANTHROPIC_API_KEY en los Secrets de la app.'; pintar(true); return; }
     txt.value = ''; txt.style.height = 'auto';
     st.chat = st.chat.concat([{ id: 'local', role: 'user', texto: t }]);
     st.busy = true; st.error = null;
     st.pending = enviar('preguntar', { texto: t });
     pintar(true);
+    subirCabeza(subir);
   }
 
   /* ---------- Formatos ---------- */
@@ -628,7 +712,7 @@
     var wrap = document.createElement('div');
 
     var hero = document.createElement('div'); hero.className = 'ia-hero';
-    hero.innerHTML = '<div class="ia-emb">' + ICO + '</div><h3>Hola, soy tu asistente</h3>' +
+    hero.innerHTML = '<span class="ia-cabeza ia-grande" id="ia-hcab" aria-hidden="true"><i></i><i></i></span><h3>Hola, soy tu asistente</h3>' +
       '<p>¿Qué quieres saber del panel?</p>';
     wrap.appendChild(hero);
 
@@ -695,6 +779,12 @@
     var es = $('#ia-estado');
     if (es) { es.title = !st.iaOk ? 'Sin clave de API' : (st.busy ? 'Analizando…' : 'En línea'); es.classList.toggle('off', !st.iaOk); }
     panel.classList.toggle('ia-working', st.busy);   // el anillo del logo late solo mientras trabaja
+    panel.classList.toggle('ia-saludo', !st.chat.length);   // con la bienvenida, la cabeza esta abajo y no en la cabecera
+    if (G.ocupado && !st.busy) {
+      var ult = st.chat[st.chat.length - 1];
+      gesto(st.error || (ult && ult.error) ? 'triste' : 'feliz', st.error ? 2600 : 1800);
+    } else pintarGesto();
+    G.ocupado = st.busy;
     if (abajo || forzar || st.busy) msgs.scrollTop = msgs.scrollHeight;
     if (!st.busy) txt.focus({ preventScroll: true });
   }
