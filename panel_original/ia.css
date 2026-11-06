@@ -468,3 +468,55 @@ body[data-gesto="pensando"] .ia-cabeza i{animation:ia-piensa 1.8s ease-in-out in
 .ia-grande i::after{top:2px;right:2px;width:3.6px;height:3.6px}
 .ia-grande{--k:2.1}
 .ia-bienv .ia-ideas{margin-top:1.6rem;gap:.55rem}
+
+/* ---------- Caja de escritura ----------
+   Dos niveles: el texto arriba y una barra de herramientas abajo (contexto, atajo, enviar).
+   El botón está apagado hasta que hay algo que enviar: el estado se lee sin pensar. */
+.ia-ft{position:relative;background:#fff;padding:.4rem .75rem .6rem;box-shadow:none;border-top:0}
+/* los mensajes se funden bajo la caja en vez de cortarse con una línea */
+.ia-ft::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:22px;pointer-events:none;
+  background:linear-gradient(to bottom,rgba(252,252,251,0),var(--ia-bg))}
+.ia-in{display:flex;flex-direction:column;align-items:stretch;gap:.15rem;padding:.65rem .5rem .5rem .9rem;
+  border:1px solid rgba(11,11,11,.08);border-radius:20px;background:#fff;
+  box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px -10px rgba(60,10,14,.18);
+  transition:border-color .2s ease,box-shadow .2s ease}
+.ia-in:focus-within{border-color:rgba(179,21,31,.35);background:#fff;
+  box-shadow:0 0 0 4px rgba(179,21,31,.08),0 10px 28px -10px rgba(179,21,31,.28)}
+.ia-in textarea{width:100%;padding:.1rem .4rem 0 0;font-size:.88rem;line-height:1.45;min-height:24px;max-height:140px;color:var(--color-fg)}
+.ia-in textarea::placeholder{color:#a3a19b}
+.ia-bar{display:flex;align-items:center;gap:.5rem;min-height:34px}
+.ia-ctx{display:inline-flex;align-items:center;gap:.3rem;min-width:0;max-width:60%;height:24px;padding:0 .55rem;border-radius:999px;
+  background:#f4f3f1;color:#6f6d68;font-size:.68rem;font-weight:500;white-space:nowrap}
+.ia-ctx svg{width:11px;height:11px;flex:none;stroke-width:2}
+.ia-ctx span{overflow:hidden;text-overflow:ellipsis}
+.ia-kbd{margin-left:auto;font-size:.64rem;color:#a3a19b;white-space:nowrap;opacity:0;translate:4px 0;
+  transition:opacity .18s ease,translate .2s var(--ia-ease)}
+.ia-in.lleno:focus-within .ia-kbd{opacity:1;translate:0 0}
+.ia-kbd kbd{font:inherit;font-size:.6rem;padding:.05rem .3rem;border-radius:5px;background:#f4f3f1;border:1px solid rgba(11,11,11,.08);
+  border-bottom-width:2px;color:#6f6d68}
+.ia-send{margin-left:auto;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;flex:none;
+  background:#ecebe8;color:#a3a19b;box-shadow:none;cursor:default;
+  transition:background-color .18s ease,color .18s ease,box-shadow .18s ease,transform .16s var(--ia-ease)}
+.ia-kbd+.ia-send{margin-left:0}
+.ia-send svg{width:16px;height:16px;stroke-width:2.2;transition:translate .2s var(--ia-ease)}
+.ia-in.lleno .ia-send:not(:disabled){background:linear-gradient(135deg,#c8202c,#9e1019);color:#fff;cursor:pointer;
+  box-shadow:0 4px 12px rgba(179,21,31,.35)}
+.ia-send:disabled{opacity:1}
+.ia-in.lleno .ia-send:not(:disabled):active{transform:scale(.94)}
+@media (hover:hover) and (pointer:fine){
+  .ia-in.lleno .ia-send:not(:disabled):hover{box-shadow:0 6px 16px rgba(179,21,31,.45)}
+  .ia-in.lleno .ia-send:not(:disabled):hover svg{translate:0 -1.5px}
+  .ia-send:hover:not(:disabled){transform:none}
+}
+.ia-meta{justify-content:center;margin-top:.4rem;font-size:.6rem;color:#b3b1ab;letter-spacing:.01em}
+
+/* ---------- Escribiendo: solo tres puntos ---------- */
+.ia-typing .ia-b{gap:5px;padding:.75rem .9rem;min-height:0}
+.ia-typing .dot{width:7px;height:7px;background:#c9c6c0;animation:ia-tres 1.2s infinite cubic-bezier(.45,0,.55,1)}
+.ia-typing .dot:nth-child(2){animation-delay:.16s}.ia-typing .dot:nth-child(3){animation-delay:.32s}
+@keyframes ia-tres{0%,70%,100%{transform:translateY(0);background:#d4d1cb}35%{transform:translateY(-4px);background:var(--ia-red)}}
+@media (prefers-reduced-motion:reduce){
+  .ia-typing .dot{animation:ia-tres-suave 1.2s infinite ease-in-out}
+  @keyframes ia-tres-suave{0%,70%,100%{background:#d4d1cb}35%{background:var(--ia-red)}}
+  .ia-kbd,.ia-send svg{transition:none}
+}

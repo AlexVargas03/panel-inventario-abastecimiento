@@ -30,6 +30,7 @@
     ok: svg('<polyline points="20 6 9 17 4 12"/>'),
     enviar: svg('<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>'),
     descarga: svg('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'),
+    filtro: svg('<polygon points="22 3 2 3 10 12.5 10 19 14 21 14 12.5 22 3"/>'),
     alerta: svg('<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'),
     info: svg('<circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="8" x2="12.01" y2="8"/>'),
     critico: svg('<circle cx="12" cy="12" r="9"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>'),
@@ -55,8 +56,10 @@
     '<div id="ia-msgs" aria-live="polite"></div>' +
     '<div class="ia-ft"><div class="ia-quick" id="ia-quick"></div>' +
     '<div class="ia-in"><textarea id="ia-txt" rows="1" placeholder="Pregunta por ventas, inventario, almacenes…" aria-label="Pregunta al asistente"></textarea>' +
-    '<button class="ia-send" id="ia-send" type="button" title="Enviar" aria-label="Enviar">' + IC.enviar + '</button></div>' +
-    '<div class="ia-meta"><span id="ia-model">Claude</span><span id="ia-ctx"></span></div></div>' +
+    '<div class="ia-bar"><span class="ia-ctx" title="Filtros activos del dashboard">' + IC.filtro + '<span id="ia-ctx"></span></span>' +
+    '<span class="ia-kbd" aria-hidden="true"><kbd>Enter</kbd> enviar · <kbd>Shift</kbd>+<kbd>Enter</kbd> línea</span>' +
+    '<button class="ia-send" id="ia-send" type="button" title="Enviar" aria-label="Enviar">' + IC.enviar + '</button></div></div>' +
+    '<div class="ia-meta"><span id="ia-model">Claude</span></div></div>' +
     '<button class="ia-lat" id="ia-lat" type="button" title="Cerrar el asistente" aria-label="Cerrar el asistente"><span></span></button>';
   var msgs = $('#ia-msgs'), txt = $('#ia-txt'), btn = $('#ia-send');
   var tip = document.createElement('div'); tip.className = 'ia-tip'; tip.hidden = true; document.body.appendChild(tip);
@@ -229,7 +232,8 @@
   abrir(st.abierto);
   /* El panel se abre y se cierra solo con el botón circular: no se añade nada a la cabecera del dashboard */
 
-  txt.addEventListener('input', function () { txt.style.height = 'auto'; txt.style.height = Math.min(120, txt.scrollHeight) + 'px'; });
+  function lleno() { txt.parentNode.classList.toggle('lleno', !!txt.value.trim()); }
+  txt.addEventListener('input', function () { txt.style.height = 'auto'; txt.style.height = Math.min(140, txt.scrollHeight) + 'px'; lleno(); });
   txt.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); preguntar(txt.value); } });
   btn.onclick = function () { preguntar(txt.value); };
 
@@ -252,7 +256,7 @@
     if (!t || st.busy) return;
     var subir = st.chat.length ? null : medir($('#ia-hcab'));
     if (!st.iaOk) { st.error = 'El asistente no está configurado: falta ANTHROPIC_API_KEY en los Secrets de la app.'; pintar(true); return; }
-    txt.value = ''; txt.style.height = 'auto';
+    txt.value = ''; txt.style.height = 'auto'; lleno();
     st.chat = st.chat.concat([{ id: 'local', role: 'user', texto: t }]);
     st.busy = true; st.error = null;
     st.pending = enviar('preguntar', { texto: t });
@@ -774,7 +778,7 @@
     if (!st.chat.length) msgs.appendChild(bienvenida());   // desaparece con la primera pregunta
     st.chat.forEach(function (m) { colgar(m); });
     if (st.busy) {
-      var t = burbuja('assistant'); t.m.classList.add('ia-typing'); t.b.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span><span style="margin-left:.35rem">Analizando…</span>'; msgs.appendChild(t.m);
+      var t = burbuja('assistant'); t.m.classList.add('ia-typing'); t.b.setAttribute('aria-label', 'El asistente está escribiendo'); t.b.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>'; msgs.appendChild(t.m);
     }
     if (st.error) { var e = burbuja('assistant'); e.b.style.borderColor = '#e8b4b4'; e.b.textContent = st.error; msgs.appendChild(e.m); }
     btn.disabled = st.busy; txt.disabled = st.busy;
