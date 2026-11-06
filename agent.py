@@ -324,7 +324,7 @@ def df_texto(df: pd.DataFrame) -> str:
 HERRAMIENTAS = [
     {
         "name": "query_business_database",
-        "description": "Ejecuta una consulta analítica: agrupa una métrica por una dimensión, en un rango de fechas y con filtros. El resultado se le MUESTRA al usuario como tabla en el chat (salvo mostrar=false). "
+        "description": "Ejecuta una consulta analítica: agrupa una métrica por una dimensión, en un rango de fechas y con filtros. El resultado se le muestra al usuario en la forma que indiques con mostrar_como (por defecto 'auto': ranking -> barras horizontales, meses -> línea, total -> tarjetas KPI, listas largas -> tabla). "
                        f"Dimensiones: {', '.join(DIMENSIONES)} ('total' = sin agrupar). Métricas de venta (sell out): {', '.join(METRICAS_VENTA)}. "
                        f"Métricas de inventario (stock actual): {', '.join(METRICAS_INV)}. Otras: dias_inventario (por proveedor), obsoleto_valor/obsoleto_productos (por proveedor, categoria, producto o criterio_obsoleto), uso_almacen (por almacen).",
         "input_schema": {"type": "object", "properties": {
@@ -337,7 +337,8 @@ HERRAMIENTAS = [
             "top_n": {"type": "integer", "description": "Cuántas filas mostrar (por defecto 15; 0 = todas)"},
             "orden": {"type": "string", "enum": ["desc", "asc"]},
             "titulo": {"type": "string", "description": "Título corto de la tabla para el usuario"},
-            "mostrar": {"type": "boolean", "description": "false para usarla solo como dato interno"}},
+            "mostrar_como": {"type": "string", "enum": ["auto", "barras_h", "barras", "linea", "dona", "kpis", "tabla", "ninguno"],
+                             "description": "Cómo se le muestra al usuario. barras_h = ranking o comparar categorías; linea = evolución en el tiempo; barras = pocos periodos; dona = participación de hasta 6 partes; kpis = un total o resumen; tabla = solo listas largas o si el usuario pide tabla; ninguno = dato solo para ti (vas a mostrarlo con otra herramienta)"}},
             "required": ["dimension", "metric"]},
     },
     {
@@ -358,7 +359,8 @@ HERRAMIENTAS = [
                        "Datos: pasa 'sql' (primera columna = etiquetas, demás columnas numéricas = series; para scatter: etiqueta, x, y; para heatmap: fila, columna, valor) o 'data_payload' "
                        "({labels:[...], series:[{name, values:[...]}]} o, para scatter, {points:[{label,x,y}]}, o para heatmap {x:[...], y:[...], z:[[...]]}).",
         "input_schema": {"type": "object", "properties": {
-            "chart_type": {"type": "string", "enum": ["line", "bar", "pie", "scatter", "heatmap"]},
+            "chart_type": {"type": "string", "enum": ["line", "bar", "barh", "pie", "scatter", "heatmap"],
+                           "description": "barh = barras horizontales (rankings, comparar categorías con nombres largos); bar = columnas (pocos periodos); line = evolución; pie = participación (dona, hasta 6 partes); scatter = relación entre dos métricas; heatmap = cruce de dos dimensiones. Varias columnas numéricas = barras agrupadas o varias líneas, siempre en la misma escala"},
             "titulo": {"type": "string"},
             "sql": {"type": "string"},
             "data_payload": {"type": "object"},
@@ -449,6 +451,16 @@ HERRAMIENTAS = [
                 "required": ["texto", "pregunta"]}}},
             "required": ["items"]},
     },
+    {
+        "name": "mostrar_comparativa",
+        "description": "Muestra en el chat una comparativa lado a lado de 2 o 3 cosas (meses, periodos, empresas ALFA/TORU, proveedores, canales) en 2 a 6 métricas, con barras y la variación de la primera frente a la segunda. "
+                       "Úsala SIEMPRE que el usuario compare pocas cosas en varias métricas, en vez de una tabla. "
+                       "Pasa 'sql': una fila por cosa comparada (2 o 3 filas, la primera es la protagonista), primera columna = nombre, demás columnas numéricas = métricas, con nombres en español (venta, margen, margen_pct, unidades, tickets...).",
+        "input_schema": {"type": "object", "properties": {
+            "titulo": {"type": "string", "description": "Ej: 'Agosto vs enero 2026'"},
+            "sql": {"type": "string", "description": "SELECT sobre las vistas vw_*: 2-3 filas, 1 columna de nombre + 2-6 numéricas"}},
+            "required": ["titulo", "sql"]},
+    },
 ]
 
 FORMATOS_BLOQUE = {"money", "pct", "int", "dec1"}
@@ -529,6 +541,95 @@ def bloque_acciones(a: dict) -> dict:
 BLOQUES_SIMPLES = {"mostrar_kpis": bloque_kpis, "mostrar_alertas": bloque_alertas, "mostrar_ficha": bloque_ficha, "sugerir_acciones": bloque_acciones}
 
 
+COLUMNAS_BAJA = ("costo", "dias", "obsoleto", "quiebre", "devol")
+
+
+def _bonito(c: str) -> str:
+    """'margen_pct' -> 'Margen %', 'ticket_promedio' -> 'Ticket promedio'."""
+    c = str(c)
+    c = c[:-4] + " %" if c.lower().endswith("_pct") else c
+    return c.replace("_", " ").strip().capitalize()
+
+
+def _etiquetas(df: pd.DataFrame) -> pd.Series | None:
+    """La columna de nombres: 'producto' si existe, si no la primera que no es numérica."""
+    if "producto" in df.columns:
+        return df["producto"].astype(str)
+    for c in df.columns:
+        if not pd.api.types.is_numeric_dtype(df[c]):
+            return df[c].astype(str)
+    return None
+
+
+def _formato_grafico(col: str) -> str:
+    f = formato_col(col)
+    return f if f in ("money", "pct") else "num"
+
+
+def elegir_visual(dimension: str, df: pd.DataFrame) -> str:
+    """Forma por defecto según la forma de los datos: la tabla es el último recurso."""
+    if dimension == "total" or len(df) == 1:
+        return "kpis"
+    if dimension == "mes":
+        return "linea" if len(df) >= 4 else "barras"
+    return "barras_h" if len(df) <= 15 else "tabla"
+
+
+def visual_desde_df(modo: str, df: pd.DataFrame, metrica: str, titulo: str, nota: str, total_filas: int, dimension: str = "") -> dict:
+    if modo == "tabla":
+        return tabla_json(df, titulo, nota, total_filas)
+    numericas = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+    met = metrica if metrica in df.columns else (numericas[0] if numericas else None)
+    if met is None:
+        return tabla_json(df, titulo, nota, total_filas)
+    if modo == "kpis":
+        fila = df.iloc[0]
+        cols = [met] + [c for c in numericas if c != met and c not in ("costo", "part")]
+        items = []
+        for c in cols[:4]:
+            v = _num(fila[c])
+            if v is None:
+                continue
+            f = formato_col(c)
+            items.append({"label": _bonito(c), "valor": v, "fmt": f if f in FORMATOS_BLOQUE else "int",
+                          **({"bueno": "baja"} if any(k in c for k in COLUMNAS_BAJA) else {})})
+        if len(items) >= 2 and len(df) == 1:
+            return {"type": "kpis", "items": items}
+        modo = "barras_h"
+    labels = _etiquetas(df)
+    if labels is None:
+        return tabla_json(df, titulo, nota, total_filas)
+    if dimension == "mes":
+        labels = labels.map(mes_txt)
+    tipo = {"barras_h": "barh", "barras": "bar", "linea": "line", "dona": "pie"}.get(modo, "barh")
+    if tipo == "pie" and len(df) > 6:
+        tipo = "barh"
+    return {"type": "chart", "chart_type": tipo, "titulo": titulo, "formato": _formato_grafico(met),
+            "labels": labels.tolist(), "series": [{"name": met.replace("_", " "), "values": [_py(v) for v in df[met]]}]}
+
+
+def bloque_comparativa(df: pd.DataFrame, titulo: str) -> dict:
+    if len(df) < 2:
+        raise ValueError("la comparativa necesita al menos 2 filas (una por cosa comparada).")
+    df = df.head(3)
+    nombres = _etiquetas(df)
+    if nombres is None:
+        raise ValueError("falta la columna con el nombre de cada cosa comparada.")
+    metricas = []
+    for c in df.columns:
+        if not pd.api.types.is_numeric_dtype(df[c]):
+            continue
+        vals = [_num(v) for v in df[c]]
+        if all(v is None for v in vals):
+            continue
+        f = formato_col(c)
+        metricas.append({"label": _bonito(c), "fmt": f if f in FORMATOS_BLOQUE else "int", "valores": vals,
+                         "bueno": "baja" if any(k in c.lower() for k in COLUMNAS_BAJA) else "sube"})
+    if len(metricas) < 1:
+        raise ValueError("la comparativa necesita columnas numéricas (las métricas).")
+    return {"type": "comparativa", "titulo": _txt(titulo, 70) or "Comparativa", "items": nombres.tolist(), "metricas": metricas[:6]}
+
+
 def ordenar_bloques(bloques: list[dict]) -> list[dict]:
     """Los botones de siguiente paso van siempre al final, y solo un grupo (el último)."""
     acciones = [b for b in bloques if b.get("type") == "acciones"]
@@ -589,13 +690,22 @@ def system_prompt(V: dict, R: dict) -> str:
 
 Cómo trabajar:
 - Nunca inventes cifras: sácalas con las herramientas.
-- Cuando el usuario pida datos, listas o comparaciones, muéstralos con query_business_database o mostrar_tabla (el usuario ve la tabla en el chat; no la repitas entera en tu texto, comenta lo importante).
-- Si una tendencia o comparación se entiende mejor en gráfico, usa generate_dynamic_chart (destino 'chat'; usa 'dashboard' solo si el usuario pide verlo en el dashboard).
-- Elige la forma según la pregunta, no por costumbre:
-  · resumen o estado ("¿cómo vamos?", "¿cómo cerró el mes?") → mostrar_kpis con 2 a 4 cifras, comparadas con el periodo anterior cuando lo tengas.
-  · riesgos que atender (quiebres, sobrestock, almacén por llenarse, obsoleto que crece) → mostrar_alertas, lo más grave primero.
+- Muestra los datos de forma visual. La tabla es el ÚLTIMO recurso: un gráfico o una comparativa se entienden de un vistazo; una tabla obliga a leer cifra por cifra.
+- Elige la forma según lo que pregunta el usuario:
+  · comparar 2 o 3 cosas (dos meses, ALFA vs TORU, dos proveedores) en varias métricas → mostrar_comparativa.
+  · ranking, top N o comparar categorías en una métrica → barras horizontales (query_business_database con mostrar_como 'barras_h', o generate_dynamic_chart 'barh').
+  · evolución en el tiempo → línea ('linea' / 'line'); con 2 a 4 periodos, columnas ('barras' / 'bar').
+  · participación o reparto de un total en hasta 6 partes → dona ('dona' / 'pie').
+  · relación entre dos métricas por ítem (venta vs margen por proveedor) → dispersión ('scatter').
+  · cruce de dos dimensiones (segmento × empresa, canal × mes) → mapa de calor ('heatmap').
+  · resumen o estado ("¿cómo vamos?", "¿cómo cerró el mes?") → mostrar_kpis, 2 a 4 cifras con su variación.
+  · riesgos que atender (quiebres, sobrestock, almacén por llenarse) → mostrar_alertas, lo más grave primero.
   · un producto concreto → mostrar_ficha.
-  · listas y detalle → tabla; evolución o comparación → gráfico.
+  · tabla SOLO si el usuario pide una tabla o lista, o si el detalle tiene muchas filas con varias columnas que hay que leer (lista de SKUs, detalle de obsoletos).
+- Si pides varias cosas a la vez, combina formas distintas (por ejemplo KPIs + barras), no tablas seguidas.
+- Al consultar con query_business_database indica siempre mostrar_como. Si el dato es solo para ti, porque lo vas a enseñar con otra herramienta, usa 'ninguno'. Nunca muestres el mismo dato dos veces (gráfico y tabla).
+- En los gráficos, varias métricas solo si comparten escala (soles con soles); nunca mezcles soles con porcentajes en el mismo gráfico: haz dos o usa una comparativa.
+- Si una tendencia se entiende mejor en el dashboard, generate_dynamic_chart admite destino 'dashboard', pero úsalo solo si el usuario pide verlo ahí.
 - No amontones: como mucho dos bloques de datos por respuesta. Una pregunta simple se responde con texto.
 - Las cifras de cualquier bloque salen de otra herramienta en este mismo turno; si no las tienes, consúltalas antes.
 - Cuando haya siguientes pasos claros, ponlos con sugerir_acciones (1 a 3 botones) en vez de escribirlos. Cada pregunta del botón tiene que entenderse sola, con su periodo, proveedor o producto. En ese caso no cierres además con una propuesta en el texto.
@@ -695,9 +805,13 @@ class Sesion:
                 return "Sin filas. " + " ".join(r.get("notas", []))
             fil = ", ".join(f"{k}={v}" for k, v in r.get("filtros", {}).items())
             nota = f"Periodo: {r['periodo']}" + (f" · filtros: {fil}" if fil else "") + ("" if not r["notas"] else " · " + " ".join(r["notas"]))
-            if a.get("mostrar", True):
+            modo = a.get("mostrar_como") or ("ninguno" if a.get("mostrar") is False else "auto")
+            if modo == "auto":
+                modo = elegir_visual(r["dimension"], df)
+            if modo != "ninguno":
                 titulo = a.get("titulo") or f"{r['metrica'].replace('_', ' ')} por {r['dimension']}"
-                self.bloques.append(tabla_json(df, titulo, nota, r["total_filas"]))
+                self.bloques.append(visual_desde_df(modo, df, r["metrica"], titulo, nota, r["total_filas"], r["dimension"]))
+                nota = f"[Mostrado al usuario como {modo}] " + nota
             self.consultas.append({"herramienta": nombre, "detalle": json.dumps({k: v for k, v in a.items() if k != "titulo"}, ensure_ascii=False)})
             return f"{nota}\n{r['total_filas']} filas en total (se muestran {len(df)}).\n" + df_texto(df)
         if nombre == "consultar_sql":
@@ -717,6 +831,11 @@ class Sesion:
                 return "Gráfico mostrado en la tarjeta 'Análisis de IA' del dashboard."
             self.bloques.append(spec)
             return "Gráfico mostrado en el chat."
+        if nombre == "mostrar_comparativa":
+            df = self.sql(a.get("sql"))
+            self.consultas.append({"herramienta": nombre, "detalle": a.get("sql")})
+            self.bloques.append(bloque_comparativa(df, a.get("titulo", "")))
+            return "Comparativa mostrada al usuario. No repitas sus cifras en tu texto.\n" + df_texto(df)
         if nombre in BLOQUES_SIMPLES:
             self.bloques.append(BLOQUES_SIMPLES[nombre](a))
             return "Mostrado al usuario en el chat. No repitas en tu texto lo que ya enseña."
@@ -755,7 +874,7 @@ class Sesion:
             spec.update({k: p[k] for k in ("labels", "series", "points", "x", "y", "z", "x_label", "y_label") if k in p})
             if "series" not in spec and "values" in p:
                 spec["series"] = [{"name": a.get("titulo", "valor"), "values": p["values"]}]
-        if tipo in ("line", "bar", "pie") and not spec.get("series"):
+        if tipo in ("line", "bar", "barh", "pie") and not spec.get("series"):
             raise ValueError("faltan datos: pasa sql o data_payload con labels y series.")
         return spec
 

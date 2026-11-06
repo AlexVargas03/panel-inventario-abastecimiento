@@ -457,7 +457,42 @@
     return el;
   }
 
-  var BLOQUES = { table: bloqueTabla, kpis: bloqueKpis, alertas: bloqueAlertas, ficha: bloqueFicha, acciones: bloqueAcciones };
+  /* ---------- Comparativa lado a lado ----------
+   * { type:'comparativa', titulo, items:['Agosto','Enero'], metricas:[{ label, fmt, valores:[a,b], bueno }] }
+   * Cada métrica tiene su propia escala (no se mezclan soles con %); la variación es la del primero frente al segundo.
+   * Las cifras van en tinta, el color solo identifica a quién pertenece cada barra. */
+  var CMP = ['#b3151f', '#9aa1ab', '#d39a2c'];
+  function bloqueComparativa(b) {
+    var el = document.createElement('div'); el.className = 'ia-blk ia-cmp';
+    var items = (b.items || []).slice(0, 3);
+    var ley = items.map(function (n, i) { return '<span><i style="background:' + CMP[i] + '"></i>' + esc(n) + '</span>'; }).join('');
+    var filas = (b.metricas || []).map(function (m) {
+      var vals = (m.valores || []).slice(0, items.length);
+      var tope = Math.max.apply(null, vals.map(function (v) { return Math.abs(+v || 0); })) || 1;
+      var d = '';
+      if (typeof vals[0] === 'number' && typeof vals[1] === 'number') {
+        var dif, sube, txt;
+        if (m.fmt === 'pct') { dif = vals[0] - vals[1]; txt = (dif >= 0 ? '+' : '−') + d3.format('.1f')(Math.abs(dif) * 100) + ' pts'; }
+        else if (vals[1] !== 0) { dif = vals[0] / vals[1] - 1; txt = (dif >= 0 ? '+' : '−') + d3.format('.1%')(Math.abs(dif)); }
+        if (txt) {
+          sube = dif >= 0;
+          var bien = (m.bueno || 'sube') === 'sube' ? sube : !sube;
+          d = '<span class="ia-delta ' + (Math.abs(dif) < 1e-9 ? 'neu' : bien ? 'bien' : 'mal') + '">' + (sube ? IC.sube : IC.baja) + txt + '</span>';
+        }
+      }
+      var barras = vals.map(function (v, i) {
+        var p = typeof v === 'number' ? Math.max(0.02, Math.abs(v) / tope) : 0;
+        return '<div class="ia-cmp-v"><span class="ia-cmp-b"><i style="--p:' + p.toFixed(3) + ';background:' + CMP[i] + '"></i></span>' +
+          '<b>' + esc(fmt(v, m.fmt)) + '</b></div>';
+      }).join('');
+      return '<div class="ia-cmp-r"><div class="ia-cmp-l"><span>' + esc(m.label) + '</span>' + d + '</div>' + barras + '</div>';
+    }).join('');
+    el.innerHTML = '<div class="ia-blk-h">' + IC.barras + '<span>' + esc(b.titulo || 'Comparativa') + '</span></div>' +
+      '<div class="ia-cmp-ley">' + ley + '</div><div class="ia-cmp-c">' + filas + '</div>';
+    return el;
+  }
+
+  var BLOQUES = { table: bloqueTabla, kpis: bloqueKpis, alertas: bloqueAlertas, ficha: bloqueFicha, acciones: bloqueAcciones, comparativa: bloqueComparativa };
 
   /* ---------- Gráficos (d3) ---------- */
   function showTip(e, html) { tip.innerHTML = html; tip.hidden = false; tip.style.left = (e.clientX + 12) + 'px'; tip.style.top = (e.clientY - 28) + 'px'; }
@@ -536,7 +571,7 @@
     legend(series.map(function (s) { return s.name; }));
     var all = [].concat.apply([], series.map(function (s) { return s.values.map(Number).filter(isFinite); }));
     var lo = Math.min(0, d3.min(all) || 0), hi = Math.max(0, d3.max(all) || 1);
-    var horiz = tipo === 'bar' && (labels.length > 8 || d3.max(labels, function (l) { return l.length; }) > 12);
+    var horiz = tipo === 'barh' || (tipo === 'bar' && (labels.length > 8 || d3.max(labels, function (l) { return l.length; }) > 12));
     if (horiz) {
       var mh = { t: 4, r: 54, b: 4, l: Math.min(150, 8 + 6 * d3.max(labels, function (l) { return Math.min(l.length, 24); })) };
       H = Math.max(120, labels.length * 22 * Math.max(1, series.length * 0.7) + 10); svg.attr('viewBox', '0 0 ' + W + ' ' + H);
