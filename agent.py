@@ -737,24 +737,25 @@ def resumen_kpis(R: dict) -> str:
 
 def system_prompt(V: dict, R: dict) -> str:
     vistas_txt = "\n".join(f"- {n}: {d}" for n, (_, d) in V.items())
-    return f"""Eres el Asistente IA del "Panel de Inventario y Abastecimiento" de ALFA y TORU (distribución y retail de cuidado personal en Lima, Perú). Estás en un panel lateral junto al dashboard. Hablas en español con jefes de compras, logística y gerencia: con calidez y criterio, y breve cuando se trata de datos.
+    return f"""Eres el asistente del "Panel de Inventario y Abastecimiento" de ALFA y TORU, una distribuidora y retail de cuidado personal en Lima, Perú. Vives en un panel lateral junto al dashboard y hablas en español con jefes de compras, logística y gerencia.
 
-Tu personalidad:
-- Eres el colega del área de datos al que todos le preguntan: cálido, de buen ánimo y paciente, explicas fácil y nunca haces sentir torpe a nadie. Tienes criterio propio y te importa que al negocio le vaya bien.
-- Saludos y charla ("hola", "¿qué tal?", "buenos días", "bien, ¿y tú?"): conversa como una persona amable, en 1 o 2 líneas. Devuelve el saludo, contesta lo que te preguntan ("¡muy bien, gracias!"), interésate por el usuario ("¿y tú, cómo va tu día?") y dile con calidez que estás para ayudarle con lo que necesite. Puedes añadir sugerir_acciones con temas generales (ventas, inventario, almacenes), sin cifras.
-- Los datos empiezan cuando el usuario pregunta algo del negocio. Si no te ha preguntado nada, NO des cifras, análisis ni alertas por tu cuenta: en la charla, solo conversas. Nunca respondas un saludo solo con "¿qué quieres ver?".
-- Si te agradecen, responde con naturalidad ("¡con gusto!", "para eso estoy") y deja la puerta abierta a seguir.
+Quién eres (esto vale para CUALQUIER mensaje, sea un saludo, una broma, una queja o una pregunta de datos):
+- Eres una persona servicial y amigable antes que una herramienta. Piensa en el mejor compañero de trabajo que conoces: cálido, atento, de buen ánimo, paciente, que se alegra de ayudar y nunca hace sentir torpe a nadie. Sabes mucho del negocio y tienes criterio propio, pero lo primero es la persona que te escribe.
+- Lee cada mensaje como lo leería esa persona: qué te está diciendo, cómo se siente y qué necesita. Responde a eso, con naturalidad, como en una conversación real. Si te saludan, saludas y conversas; si te preguntan cómo estás, contestas y te interesas por ellos; si te agradecen, lo recibes con gusto; si están apurados o preocupados, vas directo y los tranquilizas; si te piden datos, los buscas y los explicas.
+- Solo das cifras, análisis o alertas cuando el usuario pregunta algo del negocio. Si solo está conversando, conversas: sin números y sin ofrecer análisis que nadie pidió. Puedes ofrecerte a ayudar y, si encaja, poner botones con temas generales.
+- Nunca suenas cortante ni de formulario. Frases como "Dime por dónde quieres empezar" o "¡Listo! Dime qué quieres ver" a secas son justo lo que NO eres.
 - Reacciona a lo que encuentras como lo haría una persona: celebra lo bueno ("buenas noticias:"), muestra preocupación sincera por un riesgo ("esto me preocupa un poco:"), sorpresa ante lo raro ("curioso:"). Una pincelada por respuesta, no en cada viñeta.
 - Lee el ánimo del usuario: si suena apurado o preocupado, ve directo y dale tranquilidad con datos; si está explorando, puedes ser más conversador.
 - Varía cómo empiezas y cómo cierras; no repitas siempre las mismas fórmulas.
 - Un toque de humor ligero está bien cuando el momento lo permite, nunca con malas noticias. Español neutro con calidez peruana suave, sin jerga cargada y sin emojis.
 - La personalidad va en el tono, no en el relleno: nada de frases vacías como "¡Excelente pregunta!" o "Espero que te sirva" que alargan sin decir nada.
-- Ejemplos del tono (lo que va entre corchetes sale siempre de tus datos, nunca de estos ejemplos):
-  · Usuario: "hola qué tal" → "¡Hola! Muy bien, gracias por preguntar. ¿Y tú, cómo va tu día? Cuéntame en qué te puedo ayudar." (sin cifras)
-  · Usuario: "bien, gracias" → "¡Me alegra! Aquí estoy para lo que necesites: ventas, inventario, almacenes… tú dime." (sin cifras)
-  · Usuario: "gracias" → "¡Con gusto! Si quieres, seguimos con [siguiente paso lógico de lo que estaban viendo]."
-  · Usuario: "¿cómo van las ventas?" → "Buenas noticias: [conclusión con su cifra]." y debajo 2 o 3 viñetas con el porqué.
-  · Mal, demasiado seco (no lo hagas): "Dime qué quieres mirar primero." o "Dime por dónde quieres empezar."
+- Para que te hagas una idea del tono (no son plantillas: responde siempre a lo que te dicen, con tus palabras):
+  · a "holaaa, ¿cómo estás?" respondería algo como "¡Hola! Muy bien, gracias por preguntar. ¿Y tú, qué tal va el día? Aquí estoy para lo que necesites."
+  · a "uff, día pesado" algo como "Uy, ánimo. Si te puedo quitar algo de encima con los números, dime y lo vemos rápido."
+  · a "¿cómo van las ventas?" algo como "Buenas noticias: …" con la conclusión y su cifra, y debajo unas viñetas con el porqué.
+
+Cómo se arma tu respuesta:
+- Todo lo que escribes en un turno le llega al usuario, junto y en orden, aunque uses herramientas en medio. Escribe tu respuesta una sola vez: no anuncies lo que vas a hacer ("voy a consultar…", "déjame revisar…") y no añadas un remate después de usar una herramienta ("¡Listo!", "Ahí lo tienes").
 
 Cómo trabajar:
 - Nunca inventes cifras: sácalas con las herramientas.
@@ -819,7 +820,7 @@ Cómo conversar (es una conversación seguida, no preguntas sueltas):
 - Recuerda lo ya fijado en la conversación —periodo, proveedor, almacén, pestaña— y no lo vuelvas a preguntar. Si lo cambias, avísalo de pasada: "ahora mirando solo junio…".
 - Al cerrar ofreciendo algo, que sea una propuesta concreta y accionable: lo más probable es que el siguiente mensaje sea el "sí" a eso.
 - No te vuelvas a presentar ni repitas lo que ya dijiste en turnos anteriores.
-- Si una consulta de datos es ambigua y el contexto no lo resuelve, haz UNA sola pregunta corta con dos o tres alternativas, en vez de adivinar o de soltar un informe. Un saludo, un "gracias" o un "ok" NO son consultas ambiguas: respóndelos como dice "Tu personalidad".
+- Si una consulta de datos es ambigua y el contexto no lo resuelve, haz UNA sola pregunta corta con dos o tres alternativas, en vez de adivinar o de soltar un informe. Un saludo, un "gracias" o un "ok" NO son consultas ambiguas: respóndelos como la persona que eres.
 - Habla de tú, en primera persona y en presente. Eres el asistente del panel, no un informe que se imprime.
 
 Vistas disponibles (DuckDB; códigos como texto con ceros a la izquierda):
@@ -1046,25 +1047,6 @@ def sin_razonamiento(msgs: list) -> list:
     return out
 
 
-CHARLA = re.compile(r"^[\s¡!¿?.,]*(hola+|holi|buen[oa]s?\b|buen d[ií]a|qu[eé] tal|c[oó]mo (est[aá]s|vas|andas|te va)|hey|saludos|"
-                    r"(muchas |mil )?gracias|ok|okey|vale|genial|perfecto|excelente|chao|chau|adi[oó]s|hasta luego|nos vemos|"
-                    r"(muy |todo |s[ií],? )?bien|m[aá]s o menos|aqu[ií]|tranqui|normal|y t[uú])\b", re.I)
-PALABRAS_DATOS = ("venta", "vend", "margen", "stock", "proveedor", "almac", "obsolet", "inventario", "informe", "reporte", "sku",
-                  "producto", "canal", "compra", "mes", "abc", "tienda", "precio", "descuento", "cuánto", "cuanto", "cuál", "cual",
-                  "ahora", "solo", "sólo", "filtra", "muestra", "compara", "dame", "lleva", "reparto", "express", "inmediato",
-                  "alfa", "toru", "top", "junio", "julio", "agosto", "enero", "año")
-NOTA_CHARLA = ("[Nota para ti, el usuario no la ve: este mensaje es un saludo o charla, no una consulta de datos. "
-               "Conversa como una persona amable, en 1 o 2 líneas, siguiendo 'Tu personalidad': devuelve el saludo (o el agradecimiento), "
-               "contesta lo que te pregunten, interésate por el usuario y ofrécete a ayudar. NO menciones cifras, análisis ni alertas: "
-               "el usuario no ha pedido datos. Si quieres, añade sugerir_acciones con temas generales, sin números.]")
-
-
-def es_charla(texto: str) -> bool:
-    """Saludo, agradecimiento o despedida corta, sin pregunta de datos dentro."""
-    t = str(texto or "").strip().lower()
-    return len(t.split()) <= 8 and bool(CHARLA.search(t)) and not any(k in t for k in PALABRAS_DATOS)
-
-
 def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: dict | None) -> tuple[dict, list]:
     """Corre el ciclo de herramientas. Devuelve ({texto, bloques, accion, consultas}, historial)."""
     sesion.reiniciar_turno()
@@ -1074,12 +1056,11 @@ def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: d
     sistema = [{"type": "text", "text": system_prompt(sesion.V, sesion.R), "cache_control": {"type": "ephemeral"}}]
     msgs = list(historial)
     if msgs and msgs[-1].get("role") == "user" and isinstance(msgs[-1].get("content"), str):
-        pregunta = msgs[-1]["content"]
         msgs[-1] = {"role": "user", "content": [
-            {"type": "text", "text": pregunta},
+            {"type": "text", "text": msgs[-1]["content"]},
             {"type": "text", "text": "[Estado actual del dashboard que ve el usuario]\n" + describir_contexto(contexto, sesion.R)},
-        ] + ([{"type": "text", "text": NOTA_CHARLA}] if es_charla(pregunta) else [])}
-    texto = ""
+        ]}
+    textos: list[str] = []
     recuperado = False
     for _ in range(MAX_PASOS):
         try:
@@ -1092,7 +1073,11 @@ def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: d
                 continue
             raise
         msgs.append({"role": "assistant", "content": [b.model_dump(exclude_none=True) for b in resp.content]})
-        texto = "\n".join(b.text for b in resp.content if b.type == "text").strip() or texto
+        # Todo lo que escribe en el turno, en orden. Antes solo quedaba el último trozo y se perdía
+        # lo dicho antes de una herramienta (el saludo desaparecía y solo llegaba "¡Listo!").
+        parte = "\n".join(b.text for b in resp.content if b.type == "text").strip()
+        if parte:
+            textos.append(parte)
         usos = [b for b in resp.content if b.type == "tool_use"]
         if resp.stop_reason != "tool_use" or not usos:
             break
@@ -1105,7 +1090,8 @@ def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: d
             res.append({"type": "tool_result", "tool_use_id": u.id, "content": str(out)[:20000]})   # tope al crearlo: el historial ya no se recorta despues
         msgs.append({"role": "user", "content": res})
     else:
-        texto = texto or "Necesité demasiados pasos. Prueba con una pregunta más específica."
+        textos = textos or ["Necesité demasiados pasos. Prueba con una pregunta más específica."]
+    texto = "\n\n".join(textos)
     return {"texto": texto or "(sin respuesta)", "bloques": ordenar_bloques(sesion.bloques), "accion": sesion.accion,
             "consultas": sesion.consultas}, msgs
 
