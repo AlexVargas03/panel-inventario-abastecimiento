@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Panel de Inventario y Abastecimiento</title>
-<link rel="stylesheet" href="base.css?v=2a66a2dd61">
-<link rel="stylesheet" href="ia.css?v=2a66a2dd61">
-<script src="d3.min.js?v=2a66a2dd61"></script>
-<script src="shim.js?v=2a66a2dd61"></script>
+<link rel="stylesheet" href="base.css?v=a257cd7e31">
+<link rel="stylesheet" href="ia.css?v=a257cd7e31">
+<script src="d3.min.js?v=a257cd7e31"></script>
+<script src="shim.js?v=a257cd7e31"></script>
 </head><body>
 <div id="ia-wrap">
 <main id="ia-main">
@@ -20,6 +20,80 @@
 .ax-sub{color:var(--color-fg-muted);font-size:var(--cds-font-size-caption);margin-bottom:var(--cds-gap-md)!important}
 .ax-sec{margin-top:var(--cds-gap-lg)}
 .ax-card{background:var(--color-panel);border:1px solid var(--color-border-line);border-radius:var(--cds-radius);padding:var(--cds-pad-lg)}
+.cc-alerts{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:.5rem}
+.cc-alerts li{display:flex;gap:.5rem;align-items:flex-start;font-size:var(--cds-font-size-caption);color:var(--color-fg-muted)}
+.cc-alerts li b{color:var(--color-fg);font-weight:500}
+.cc-alerts li::before{content:"";width:.5rem;height:.5rem;border-radius:50%;margin-top:.3rem;flex:0 0 auto;background:var(--color-fg-muted)}
+.cc-alerts li.bad::before{background:var(--color-bad)}
+.cc-alerts li.warn::before{background:var(--color-warn)}
+.cc-pill{display:inline-flex;align-items:center;padding:.1rem .55rem;border-radius:999px;font-size:.72rem;font-weight:500;white-space:nowrap}
+.cc-pill.bad{background:color-mix(in srgb,var(--color-bad) 15%,var(--color-bg));color:var(--color-bad)}
+.cc-pill.warn{background:color-mix(in srgb,var(--color-warn) 15%,var(--color-bg));color:var(--color-warn)}
+.cc-pill.ok{background:color-mix(in srgb,var(--color-ok) 15%,var(--color-bg));color:var(--color-ok)}
+.cc-pill.muted{background:color-mix(in srgb,var(--color-fg-muted) 12%,var(--color-bg));color:var(--color-fg-muted)}
+.cc-bar{display:flex;align-items:center;gap:.5rem}
+.cc-bar .cc-trk{flex:1;height:.55rem;border-radius:3px;background:color-mix(in srgb,var(--cds-chart-muted) 25%,var(--color-bg));min-width:3rem;overflow:hidden}
+.cc-bar .cc-trk i{display:block;height:100%;border-radius:3px}
+.cc-tbl td.num,.cc-tbl th.num{text-align:right}
+.cc-tbl tbody tr[data-key]{cursor:pointer}
+.cc-tbl tbody tr[data-key]:hover,.cc-tbl tbody tr.sel{background:color-mix(in srgb,var(--cds-chart-muted) 18%,var(--color-panel))}
+.cc-tbl tbody tr.sel{font-weight:500}
+.cc-tbl tbody tr.sel td:first-child{color:var(--color-fg)}
+.cc-scope{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap}
+.cc-info{display:flex;justify-content:flex-end;margin-bottom:.4rem}
+#cc-kpis{grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:.6rem;border:0!important;background:transparent!important;border-radius:0;overflow:visible}
+#cc-kpis .pw-ik{border:1px solid var(--color-border-line)!important;border-radius:var(--cds-radius);background:var(--color-panel);padding:.8rem 1rem!important;gap:.15rem}
+#cc-kpis .pw-ik small,#cc-kpis .pw-ik em{white-space:normal;overflow:visible;text-overflow:clip}
+.cc-head{margin-bottom:.9rem}
+.ax .cc-h{font-family:var(--font-anthropic-serif);font-weight:400;font-size:var(--cds-font-size-title);margin:0 0 .35rem}
+.cc-meta{display:flex;flex-wrap:wrap;gap:.2rem 1.4rem;color:var(--color-fg-muted);font-size:var(--cds-font-size-caption)}
+.cc-meta b{color:var(--color-fg);font-weight:600}
+.cc-nosc{overflow-x:auto}
+.cc-tbl td.num{white-space:nowrap}
+.cc-lead{max-width:62rem;line-height:1.5;font-size:var(--cds-font-size-heading);margin-top:.5rem!important}
+.cc-lead b{font-weight:600}
+#cc-kpis .cc-bad{color:var(--color-bad)}
+.cc-top{display:flex;align-items:center;justify-content:space-between;gap:.6rem 1rem;flex-wrap:nowrap;margin:.6rem 0 0}
+.cc-top .cc-pick{flex:1;min-width:0}
+.cc-top .so-info{margin-left:0}
+.cc-sel{font:inherit;font-size:.85rem;padding:.35rem .7rem;border-radius:999px;border:1px solid var(--color-border-line);background:var(--color-bg);color:var(--color-fg);max-width:100%;cursor:pointer}
+.cc-panel{margin-top:.6rem;display:flex;flex-direction:column;gap:.6rem;border:0;background:transparent;overflow:visible}
+.cc-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,26rem),1fr));gap:.6rem}
+.cc-row.one{grid-template-columns:minmax(0,1fr)}
+.cc-row>.pw-cell{border:1px solid var(--color-border-line)!important;border-radius:var(--cds-radius);background:var(--color-panel);padding:1rem 1.2rem}
+.cc-tbl td.dk{max-width:15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cc-alerts li small{display:block;color:var(--color-fg-muted);font-size:.72rem}
+.cc-alerts li.ok::before{background:var(--color-ok)}
+.pw-mks.cc-mks{grid-template-columns:repeat(2,minmax(0,1fr));width:100%;max-width:24rem}
+.cc-pick{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+.cc-arr{width:2rem;height:2rem;padding:0!important;display:inline-flex;align-items:center;justify-content:center;font-size:1.1rem;line-height:1;flex:0 0 auto}
+.cc-arr[hidden]{display:none}
+.ae-card.cc-card{width:min(44rem,calc(100% - 9rem));height:2.4rem}
+.ae-card.cc-card .ae-face{flex-direction:row;align-items:center;gap:.6rem;padding:0 .8rem}
+.ae-card.cc-card .ae-top,.ae-card.cc-card .ae-row{display:contents}
+.ae-card.cc-card .ae-lab{order:1;white-space:nowrap}
+.ae-card.cc-card .ae-name{order:2;font-size:.88rem;flex:0 1 auto}
+.ae-card.cc-card .ae-hint{order:3;flex:1 1 0}
+.ae-card.cc-card .ae-dots{order:4;margin-left:auto;flex:0 0 auto}
+@media (max-width:560px){.ae-card.cc-card .ae-hint{display:none}.ae-card.cc-card .ae-dots{display:none}}
+.cc-card .ae-row{min-width:0}
+.cc-card .ae-name,.cc-card .ae-hint{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.cc-pickn{color:var(--color-fg-muted);font-size:.75rem}
+.cc-legpills{display:flex;flex-wrap:wrap;gap:.4rem 1rem;font-size:.75rem;color:var(--color-fg-muted);align-items:center}
+.cc-tbl td.act{white-space:normal;min-width:13rem}
+.cc-tbl td.code{white-space:nowrap}
+.cc-tbl tr.row-Cuadra td:first-child{box-shadow:inset 3px 0 0 var(--color-ok)}
+.cc-tbl tr.row-Faltante td:first-child{box-shadow:inset 3px 0 0 var(--color-bad)}
+.cc-tbl tr.row-Sobrante td:first-child{box-shadow:inset 3px 0 0 var(--color-fg)}
+.cc-tbl tr.row-Sin-stock td{color:var(--color-fg-muted)}
+.cc-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.6rem}
+.cc-st{border:1px solid var(--color-border-line);border-radius:var(--cds-radius);padding:.6rem .8rem;display:flex;flex-direction:column;gap:.1rem;min-width:0;background:var(--color-bg)}
+.cc-st small{color:var(--color-fg-muted);font-size:.72rem}
+.cc-st b{font-size:clamp(1.15rem,1.8vw,1.6rem);font-weight:500;line-height:1.2}
+.cc-st b.cc-bad{color:var(--color-bad)}
+.cc-st em{font-style:normal;color:var(--color-fg-muted);font-size:.72rem}
+@media (max-width:900px){.cc-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:560px){.cc-stats{grid-template-columns:minmax(0,1fr)}}
 .ax-grid{display:grid;gap:var(--cds-gap-md);grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr))}
 .ax-grid>*{min-width:0}
 .ax-grp{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:.3rem;background:var(--color-panel);border:1px solid var(--color-border-line);border-top:3px solid var(--gc);border-radius:var(--cds-radius);padding:var(--cds-pad-lg)}
@@ -715,6 +789,7 @@
       <button class="ax-tab" id="tab-po" role="tab" data-tab="po" aria-selected="false">Política por segmento</button>
       <button class="ax-tab" id="tab-alm" role="tab" data-tab="alm" aria-selected="false">Capacidad de almacén</button>
       <button class="ax-tab" id="tab-pl" role="tab" data-tab="pl" aria-selected="false">Planificación</button>
+      <button class="ax-tab" id="tab-cc" role="tab" data-tab="cc" aria-selected="false">Conteo cíclico</button>
     </div>
   </header>
 <div id="pg-pn" style="position:relative">
@@ -870,6 +945,80 @@
       </section>
     </div>
   </div>
+  <div id="pg-cc" hidden style="position:relative">
+  <header class="cc-head">
+    <h2 class="cc-h">Conteo cíclico</h2>
+    <p class="cc-meta"><span>Empresa <b id="cc-m-emp">—</b></span><span>Procesos <b id="cc-m-proc">—</b></span><span>Almacenes <b id="cc-m-alm">—</b></span><span>Fecha <b id="cc-m-fec">—</b></span><span>Proveedores <b id="cc-m-prov">—</b></span></p>
+    <p class="cc-lead" id="cc-lead"></p>
+  </header>
+  <div class="pw-ikpis" id="cc-kpis">
+    <div class="pw-ik"><small>Artículos totales</small><b id="cc-k-tot">—</b><em id="cc-k-tot-s">—</em><em id="cc-k-tot-s2">—</em></div>
+    <div class="pw-ik"><small>Artículos con diferencia</small><b id="cc-k-dif">—</b><em id="cc-k-dif-s">—</em></div>
+    <div class="pw-ik"><small>Exactitud en unidades</small><b id="cc-k-exact">—</b><em>1 − Σ|diferencia| ÷ Σ stock</em></div>
+    <div class="pw-ik"><small>Diferencia neta (uds)</small><b id="cc-k-neta">—</b><em id="cc-k-neta-s">—</em></div>
+    <div class="pw-ik"><small>Valorización neta</small><b id="cc-k-val">—</b><em id="cc-k-val-s">—</em></div>
+  </div>
+
+  <div class="cc-top">
+    <div class="cc-pick">
+        <button type="button" class="ax-pill cc-arr" id="cc-prev" aria-label="Proceso anterior">‹</button>
+        <button type="button" class="ae-card cc-card" id="cc-card" aria-label="Proceso. Clic para el siguiente (también con las flechas ← →)" title="Clic o flechas ← → para cambiar de proceso"><span class="ae-in"><span class="ae-face ae-f"><span class="ae-top"><span class="ae-lab"></span><span class="ae-dots"></span></span><span class="ae-row"><span class="ae-name"></span></span><span class="ae-hint"></span></span><span class="ae-face ae-b"><span class="ae-top"><span class="ae-lab"></span><span class="ae-dots"></span></span><span class="ae-row"><span class="ae-name"></span></span><span class="ae-hint"></span></span></span></button>
+        <button type="button" class="ax-pill cc-arr" id="cc-next" aria-label="Proceso siguiente">›</button>
+        <span class="cc-pickn" id="cc-pick-n"></span>
+    </div>
+    <span class="so-info" tabindex="0" role="note" aria-label="Activos = artículos con stock o conteo. Diferencia = conteo final menos stock." title="Activos = artículos con stock o conteo (se excluyen los de stock 0 y conteo 0). Diferencia = conteo final (2.º reconteo; si no, 1.º; si no, conteo) − stock del sistema. Negativo = faltante, positivo = sobrante. Valor a costo unitario.">i</span>
+  </div>
+  <div class="cc-panel" id="cc-panel">
+    <div class="cc-row one"><section class="pw-cell">
+      <div class="pw-h"><h2>Procesos del archivo</h2><span>clic en una fila para filtrar</span></div>
+      <div class="ax-scroll">
+        <table class="pn-tbl cc-tbl" id="cc-tproc">
+          <thead><tr><th>Empresa</th><th>Almacén</th><th>Proceso</th><th>Fecha</th><th class="num">Artículos</th><th class="num">Con dif.</th><th class="num">Exactitud art.</th><th class="num">Exactitud uds</th><th class="num">Neto uds</th><th class="num">Valor neto S/</th></tr></thead>
+          <tbody id="cc-tproc-b"></tbody>
+        </table>
+      </div>
+    </section></div>
+    <div class="cc-row one"><section class="pw-cell">
+      <div class="pw-h"><h2>Diferencia por artículo</h2><span>conteo − stock (uds)</span></div>
+      <div class="ax-leg"><span><i style="--gc:var(--color-bad)"></i>Faltante</span><span><i style="--gc:var(--color-fg)"></i>Sobrante</span></div>
+      <div class="ax-chart" id="cc-chart" style="min-height:0"></div>
+    </section></div>
+    <div class="cc-row">
+      <section class="pw-cell"><div class="pw-h"><h2>Unidades por causa</h2><span>uds con diferencia</span></div><table class="pn-tbl cc-tbl" id="cc-tcausa"><tbody id="cc-tcausa-b"></tbody></table></section>
+      <section class="pw-cell"><div class="pw-h"><h2>Calidad de datos del archivo</h2><span>artículos con problemas</span></div><table class="pn-tbl cc-tbl"><thead><tr><th>Alerta</th><th class="num">Artículos</th></tr></thead><tbody id="cc-tcal-b"></tbody></table></section>
+    </div>
+    <div class="cc-row one"><section class="pw-cell">
+      <div class="pw-h"><h2>Estadística del conteo</h2><span id="cc-st-n"></span></div>
+      <div class="cc-stats">
+        <div class="cc-st"><small>Exactitud por artículo · IC 95%</small><b id="cc-st-acc">—</b><em id="cc-st-acc-s">—</em></div>
+        <div class="cc-st"><small>Exactitud con tolerancia ±1 ud</small><b id="cc-st-tol">—</b><em id="cc-st-tol-s">—</em></div>
+        <div class="cc-st"><small>Error absoluto medio</small><b id="cc-st-mae">—</b><em id="cc-st-mae-s">—</em></div>
+        <div class="cc-st"><small>Sesgo del conteo</small><b id="cc-st-bias">—</b><em id="cc-st-bias-s">—</em></div>
+        <div class="cc-st"><small>Diferencias atípicas</small><b id="cc-st-out">—</b><em id="cc-st-out-s">—</em></div>
+        <div class="cc-st"><small>Stock vs error (Spearman ρ)</small><b id="cc-st-sp">—</b><em id="cc-st-sp-s">—</em></div>
+      </div>
+    </section></div>
+    <div class="cc-row one"><section class="pw-cell">
+      <div class="pw-h"><h2>Estadísticos descriptivos</h2><span>sobre artículos con stock o conteo</span></div>
+      <div class="cc-nosc"><table class="pn-tbl cc-tbl"><thead><tr><th>Estadístico</th><th class="num">Valor</th><th>Cómo leerlo</th></tr></thead><tbody id="cc-tdesc-b"></tbody></table></div>
+    </section></div>
+    <div class="cc-row one"><section class="pw-cell">
+      <div class="pw-h"><h2>Todos los artículos del conteo</h2><span id="cc-count"></span></div>
+      <div class="cc-legpills" id="cc-leg"></div>
+      <p class="ax-sub" style="margin:0!important"><input class="ax-search" id="cc-q" type="search" placeholder="Buscar…" autocomplete="off"></p>
+      <div class="ax-scroll" style="max-height:28rem"><table class="pn-tbl cc-tbl"><thead><tr><th>Proceso</th><th>Artículo</th><th>Descripción</th><th class="num">Stock</th><th class="num">Conteo</th><th class="num">Dif.</th><th>Resultado</th></tr></thead><tbody id="cc-tall-b"></tbody></table></div>
+    </section></div>
+    <div class="cc-row one"><section class="pw-cell">
+      <div class="pw-h"><h2>Plan de acción por artículo</h2><span>prioridad: alta ≥ 8 uds · media 3–7 · baja 1–2</span></div>
+      <div class="ax-scroll"><table class="pn-tbl cc-tbl"><thead><tr><th>Proceso</th><th>Artículo</th><th>Producto</th><th class="num">Stock</th><th class="num">Conteo</th><th class="num">Dif.</th><th class="num">Valor S/</th><th>Prioridad</th><th>Estado</th><th>Acción</th><th>Nota</th></tr></thead><tbody id="cc-tplan-b"></tbody></table></div>
+    </section></div>
+    <div class="cc-row">
+      <section class="pw-cell"><div class="pw-h"><h2>Dónde se concentra el valor</h2><span id="cc-pareto-h">top 5</span></div><table class="pn-tbl cc-tbl"><tbody id="cc-tpareto-b"></tbody></table></section>
+      <section class="pw-cell"><div class="pw-h"><h2>Por proveedor</h2><span>valor de diferencias</span></div><table class="pn-tbl cc-tbl"><tbody id="cc-tprov-b"></tbody></table></section>
+    </div>
+  </div>
+  </div>
+
   <div id="pg-po" hidden>
   <p class="ax-lead">Cada producto cae en un segmento de dos letras. El segmento define la política de inventario: los <b>AX</b> son prioridad máxima y los <b>CZ</b> son candidatos a descontinuar. Aquí ves cuántos productos, cuánto valor y cuánto espacio tiene cada segmento.</p>
   <p class="ax-note">La clase de cada producto es la de la columna XYZABC de tu archivo. No puedo recalcular ABC (venta acumulada) ni XYZ (variabilidad mes a mes) porque el archivo no trae ventas por mes. El valor y el espacio sí los calculo yo con Stock Valorizado y m³.</p>
@@ -894,9 +1043,7 @@
   </section>
 </div>
 </div>
-
 <script>
-
 const ABCN={A:'Clase A',B:'Clase B',C:'Clase C','S/M':'Sin medidas'};
 const nf=d3.format(',');
 const FMT={
@@ -909,7 +1056,8 @@ const FMT={
   moneyc:v=>'S/ '+d3.format('~s')(v),
   money2:v=>'S/ '+d3.format(',.2f')(v),
   pts:v=>(v>=0?'▲ ':'▼ ')+d3.format('.1f')(Math.abs(v*100))+' pts',
-  moneyk:v=>v>=1e6?'S/ '+d3.format('.2f')(v/1e6)+' M':v>=1e3?'S/ '+Math.round(v/1e3)+' mil':'S/ '+Math.round(v)
+  moneyk:v=>v>=1e6?'S/ '+d3.format('.2f')(v/1e6)+' M':v>=1e3?'S/ '+Math.round(v/1e3)+' mil':'S/ '+Math.round(v),
+  signed:v=>(v>0?'+':v<0?'−':'')+nf(Math.round(Math.abs(v)))
 };
 
 dash.calc('base',{
@@ -2033,6 +2181,88 @@ aeBtn.addEventListener('keydown',e=>{
   if(e.key==='ArrowRight'||e.key==='ArrowDown'){e.preventDefault();aeGo(1);}
   else if(e.key==='ArrowLeft'||e.key==='ArrowUp'){e.preventDefault();aeGo(-1);}
 });
+
+dash.calc('cc_base',{
+  title:'Conteo c\u00edclico normalizado',
+  description:'Una fila por art\u00edculo contado: conteo final (segundo reconteo si lo hay, si no el primero, si no el conteo), diferencia contra el stock del sistema (del archivo si la trae, si no calculada) y su valor al costo unitario.',
+  inputs:['cc_maestro'],
+  fn:(cc_maestro)=>cc_maestro.map(r=>{
+    const stock=Number(r.stock)||0,conteo=Number(r.conteo)||0,r1=Number(r.reconteo1)||0,r2=Number(r.reconteo2)||0;
+    const conteo_final=r2||r1||conteo;
+    const dRaw=r.diferencia===undefined||r.diferencia===''?NaN:Number(r.diferencia);
+    const dif=conteo_final-stock;
+    const totRaw=r.total===undefined||r.total===''?NaN:Number(r.total);
+    const costo=Number(r.costo_unitario)||0,valor=dif*costo;
+    return {empresa:r.empresa,fecha:r.fecha,id_proceso:r.id_proceso,almacen:r.almacen,desc_proceso:r.desc_proceso,
+      articulo:r.articulo,descripcion:r.descripcion,um:r.um,stock:stock,conteo:conteo,reconteo1:r1,reconteo2:r2,
+      conteo_final:conteo_final,diferencia:dif,costo:costo,valor:valor,proveedor:r.proveedor,grupo:r.grupo,
+      subgrupo:r.subgrupo,marca:r.marca,nro_ajuste:r.nro_ajuste||'',dif_excel:isNaN(dRaw)?null:dRaw,total_excel:isNaN(totRaw)?null:totRaw,linea:String(r.descripcion||'').includes('PROMOCION')?'Promo':'Regular',clave:r.empresa+'|'+r.id_proceso+'|'+r.articulo,proc_key:r.empresa+'|'+r.id_proceso,
+      resultado:dif<0?'Faltante':dif>0?'Sobrante':(stock===0&&conteo_final===0?'Sin stock':'Cuadra')};
+  })
+});
+dash.calc('cc_det',{
+  title:'Diferencias con causa',
+  description:'Solo los art\u00edculos cuya diferencia no es cero, con la causa y el estado registrados (si existen) y una prioridad por el tama\u00f1o de la diferencia.',
+  inputs:['cc_base','cc_causas'],
+  fn:(cc_base,cc_causas)=>{
+    const cm={};
+    cc_causas.forEach(c=>{cm[c.empresa+'|'+c.id_proceso+'|'+c.articulo]={causa:c.causa,estado:c.estado,observacion:c.observacion};});
+    return cc_base.filter(r=>r.diferencia!==0).map(r=>{
+      const c=cm[r.clave]||{};
+      const abs=Math.abs(r.diferencia);
+      const acc=[abs>=8?'Recontar con barrido de ubicaciones y revisar despachos':'Recontar'];
+      if(String(r.descripcion||'').includes('SHAMPOO')&&r.marca==='ACONDICIONADOR')acc.push('Corregir categor\u00eda (figura '+r.marca+')');
+      return Object.assign({},r,{causa:c.causa||'Por analizar',estado:c.estado||'Pendiente',observacion:c.observacion||'',
+        prioridad:abs>=8?'Alta':abs>=3?'Media':'Baja',accion:acc.join('; ')});
+    }).sort((a,b)=>Math.abs(b.diferencia)-Math.abs(a.diferencia));
+  }
+});
+dash.calc('cc_kpi',{
+  title:'Indicadores del conteo c\u00edclico',
+  description:'Totales de art\u00edculos contados, con diferencia, faltantes y sobrantes, sus unidades y valor a costo, y el % de diferencias con causa explicada.',
+  inputs:['cc_base','cc_det'],
+  fn:(cc_base,cc_det)=>{
+    const articulos=cc_base.length,con_dif=cc_det.length,exactos=articulos-con_dif;
+    const falt=cc_det.filter(r=>r.diferencia<0),sobr=cc_det.filter(r=>r.diferencia>0);
+    const uds_falt=-d3.sum(falt,r=>r.diferencia),uds_sobr=d3.sum(sobr,r=>r.diferencia);
+    const valor_falt=-d3.sum(falt,r=>r.valor),valor_sobr=d3.sum(sobr,r=>r.valor);
+    const explicadas=cc_det.filter(r=>r.estado==='Explicada').length;
+    return [{k:'TOTAL',stock_total:d3.sum(cc_base,r=>r.stock),conteo_total:d3.sum(cc_base,r=>r.conteo_final),
+      articulos:articulos,con_dif:con_dif,exactos:exactos,pct_exacto:articulos?exactos/articulos:0,
+      faltantes:falt.length,sobrantes:sobr.length,uds_falt:uds_falt,uds_sobr:uds_sobr,
+      valor_falt:valor_falt,valor_sobr:valor_sobr,valor_neto:d3.sum(cc_det,r=>r.valor),
+      pct_explicadas:con_dif?explicadas/con_dif:0}];
+  }
+});
+dash.calc('cc_procesos',{
+  title:'Procesos del conteo c\u00edclico',
+  description:'Un proceso es el conteo de un almac\u00e9n en una fecha: cu\u00e1ntos art\u00edculos tiene, cu\u00e1ntos con diferencia y el valor neto de esas diferencias.',
+  inputs:['cc_base'],
+  fn:(cc_base)=>{
+    const g={};
+    cc_base.forEach(r=>{
+      const k=r.proc_key;
+      if(!g[k])g[k]={proc_key:k,empresa:r.empresa,id_proceso:r.id_proceso,almacen:r.almacen,desc_proceso:r.desc_proceso,fecha:r.fecha,nro_ajuste:r.nro_ajuste||'',articulos:0,contados:0,exactos:0,con_dif:0,valor_neto:0,stock_total:0,uds_abs:0,uds_neto:0};
+      const o=g[k];o.articulos++;if(r.diferencia!==0)o.con_dif++;if(r.stock>0||r.conteo_final>0){o.contados++;if(r.diferencia===0)o.exactos++;}o.valor_neto+=r.valor;o.stock_total+=r.stock;o.uds_abs+=Math.abs(r.diferencia);o.uds_neto+=r.diferencia;
+    });
+    return Object.values(g).sort((a,b)=>b.con_dif-a.con_dif);
+  }
+});
+dash.calc('cc_causas_agg',{
+  title:'Diferencias por causa',
+  description:'Para cada causa registrada, cu\u00e1ntos art\u00edculos, cu\u00e1ntas unidades absolutas y cu\u00e1nto valor absoluto representa.',
+  inputs:['cc_det'],
+  fn:(cc_det)=>{
+    const g={};
+    cc_det.forEach(r=>{
+      const k=r.causa||'Sin causa registrada';
+      if(!g[k])g[k]={causa:k,n:0,unidades:0,valor:0};
+      g[k].n++;g[k].unidades+=Math.abs(r.diferencia);g[k].valor+=Math.abs(r.valor);
+    });
+    return Object.values(g).sort((a,b)=>b.unidades-a.unidades);
+  }
+});
+
 function render(){
   const gc=gcols();
   root.querySelectorAll('[data-gc]').forEach(el=>el.style.setProperty('--gc',gc[el.dataset.gc]));
@@ -2042,6 +2272,7 @@ function render(){
   fillMarks();
   try{drawSellout();}catch(err){console.error(err);}
   if(page==='alm'){try{drawPanel();}catch(err){console.error(err);}}
+  if(page==='cc'){try{drawCC();}catch(err){console.error(err);}}
   if(sts.some(s=>s!=='ok'))return;
   if(page==='pn'){
     heatAbc();
@@ -2055,13 +2286,13 @@ dash.onData(render);
 function showPage(name){
   page=name;
   try{mxHide();}catch(err){}
-  ['pn','po','alm','pl'].forEach(n=>{document.getElementById('pg-'+n).hidden=n!==name;});
+  ['pn','po','alm','pl','cc'].forEach(n=>{document.getElementById('pg-'+n).hidden=n!==name;});
   root.querySelectorAll('.ax-tab').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===name)));
   dash.setLink('pg-'+name);
   render();
 }
 const named=document.getElementById(location.hash.slice(1));
-if(named&&(named.id==='pg-pn'||named.id==='pg-po'||named.id==='pg-alm'||named.id==='pg-pl'))showPage(named.id.slice(3));
+if(named&&(named.id==='pg-pn'||named.id==='pg-po'||named.id==='pg-alm'||named.id==='pg-pl'||named.id==='pg-cc'))showPage(named.id.slice(3));
 
 root.addEventListener('click',e=>{
   const tab=e.target.closest('.ax-tab');
@@ -2117,11 +2348,382 @@ root.addEventListener('click',e=>{
 });
 document.addEventListener('keydown',e=>{if(e.key==='Escape')mxHide();});
 
+
+function ccPill(cls,txt){const s=document.createElement('span');s.className='cc-pill '+cls;s.textContent=txt;return s;}
+function ccEstadoCls(e){return e==='Explicada'?'ok':e==='Parcial'?'warn':e==='Pendiente'?'bad':'muted';}
+function ccResCls(r){return r==='Faltante'?'bad':r==='Sobrante'?'warn':r==='Sin stock'?'muted':'ok';}
+function ccTd(txt,cls){const td=document.createElement('td');td.textContent=txt;if(cls)td.className=cls;return td;}
+function ccProcLabel(r){return r.id_proceso+' \u00b7 '+r.almacen+' \u00b7 '+(r.fecha?r.fecha.split('-').reverse().join('/'):'');}
+let ccQ='';
+let ccProc;
+let ccOrd=[],ccN=0;
+const ccCardEl=document.getElementById('cc-card'),ccIn=ccCardEl.querySelector('.ae-in'),ccFaces=ccCardEl.querySelectorAll('.ae-face');
+function ccFace(face,r,i,n){
+  if(r.all){
+    face.querySelector('.ae-lab').textContent='D\u00eda \u00b7 resumen';
+    face.querySelector('.ae-name').textContent='Todos los procesos';
+    face.querySelector('.ae-hint').textContent=r.n+' procesos'+(r.fecha?' \u00b7 '+r.fecha.split('-').reverse().join('/'):'');
+  }else{
+    face.querySelector('.ae-lab').textContent=r.empresa+' \u00b7 '+r.id_proceso;
+    face.querySelector('.ae-name').textContent=r.desc_proceso;
+    face.querySelector('.ae-hint').textContent=r.almacen+' \u00b7 '+(r.fecha?r.fecha.split('-').reverse().join('/'):'');
+  }
+  const dots=face.querySelector('.ae-dots');dots.replaceChildren();
+  if(n>1&&n<=10)for(let k=0;k<n;k++){const d=document.createElement('i');if(k===i)d.className='on';dots.appendChild(d);}
+}
+function ccCardSync(){
+  const n=ccOrd.length,i=ccOrd.findIndex(r=>r.proc_key===ccProc);
+  document.getElementById('cc-prev').hidden=n<2;document.getElementById('cc-next').hidden=n<2;
+  if(i<0){ccSet('cc-pick-n','');return;}
+  ccFace(ccFaces[ccN&1],ccOrd[i],i,n);
+  ccIn.style.setProperty('--ae-r',(ccN*180)+'deg');
+  ccSet('cc-pick-n',n>1?(i+1)+' de '+n:'');
+}
+function ccGo(step,target){
+  const n=ccOrd.length;if(n<2)return;
+  let i=ccOrd.findIndex(r=>r.proc_key===ccProc);if(i<0)i=0;
+  const ni=target!==undefined?target:(i+step+n)%n;
+  if(ni===i)return;
+  if(target!==undefined)step=ni>i?1:-1;
+  ccFace(ccFaces[(ccN+step)&1],ccOrd[ni],ni,n);
+  ccN+=step;
+  ccIn.style.setProperty('--ae-r',(ccN*180)+'deg');
+  ccProc=ccOrd[ni].proc_key;
+  drawCC();
+}
+function ccBarRows(id,rows,empty){
+  const tb=document.getElementById(id);tb.replaceChildren();
+  const mx=d3.max(rows,r=>r.w)||1;
+  rows.forEach(r=>{
+    const tr=document.createElement('tr');
+    const td1=ccTd(r.label,'dk');td1.title=r.label;
+    const td2=document.createElement('td');td2.className='num';
+    const wrap=document.createElement('div');wrap.className='cc-bar';
+    const trk=document.createElement('div');trk.className='cc-trk';
+    const i=document.createElement('i');i.style.width=(r.w>0?Math.max(2,r.w/mx*100):0)+'%';i.style.background=r.color||dash.colors[0];trk.appendChild(i);
+    const sp=document.createElement('span');sp.textContent=r.txt;sp.style.minWidth='7rem';
+    wrap.append(sp,trk);td2.appendChild(wrap);tr.append(td1,td2);tb.appendChild(tr);
+  });
+  if(!rows.length){const tr=document.createElement('tr');tr.appendChild(ccTd(empty||'Sin datos','dk'));tb.appendChild(tr);}
+}
+function ccLi(ul,cls,title,detail){
+  const li=document.createElement('li');li.className=cls;
+  const sp=document.createElement('span');const b=document.createElement('b');b.textContent=title;sp.appendChild(b);
+  if(detail){const sm=document.createElement('small');sm.textContent=detail;sp.appendChild(sm);}
+  li.appendChild(sp);ul.appendChild(li);
+}
+function ccCut(s,n){s=String(s||'');return s.length>n?s.slice(0,n-1)+'…':s;}
+function ccSet(id,t){const el=document.getElementById(id);if(el)el.textContent=t;}
+function ccRanks(a){
+  const idx=a.map((v,i)=>i).sort((x,y)=>a[x]-a[y]),r=new Array(a.length);
+  for(let i=0;i<idx.length;){
+    let j=i;while(j+1<idx.length&&a[idx[j+1]]===a[idx[i]])j++;
+    const avg=(i+j)/2+1;for(let k=i;k<=j;k++)r[idx[k]]=avg;i=j+1;
+  }
+  return r;
+}
+function ccSignTest(a,b){
+  const n=a+b;if(n===0)return null;
+  const lf=[0];for(let i=1;i<=n;i++)lf[i]=lf[i-1]+Math.log(i);
+  const k=Math.min(a,b);let t=0;
+  for(let i=0;i<=k;i++)t+=Math.exp(lf[n]-lf[i]-lf[n-i]-n*Math.LN2);
+  return Math.min(1,2*t);
+}
+function ccStats(cont,falt,sobr,ddS){
+  const n=cont.length;
+  const ids=['acc','tol','mae','bias','out','sp'];
+  const body=document.getElementById('cc-tdesc-b');body.replaceChildren();
+  const clear=()=>{ids.forEach(k=>{ccSet('cc-st-'+k,'\u2014');ccSet('cc-st-'+k+'-s','');});document.getElementById('cc-st-bias').classList.remove('cc-bad');ccSet('cc-st-n','');};
+  if(n<2){clear();return;}
+  const sg=(v,d)=>(v<0?'\u2212':v>0?'+':'')+Math.abs(v).toFixed(d);
+  const dif=cont.map(r=>r.diferencia),ab=dif.map(Math.abs);
+  ccSet('cc-st-n',n+' art. activos');
+  const k=dif.filter(d=>d===0).length,p=k/n,z=1.96,z2=z*z;
+  const den=1+z2/n,cen=(p+z2/(2*n))/den,half=z*Math.sqrt(p*(1-p)/n+z2/(4*n*n))/den;
+  ccSet('cc-st-acc',FMT.pct(p));
+  ccSet('cc-st-acc-s','Entre '+FMT.pct(Math.max(0,cen-half))+' y '+FMT.pct(Math.min(1,cen+half))+' con '+n+' art\u00edculos activos');
+  const t1=ab.filter(d=>d<=1).length;
+  const t2=cont.filter(r=>r.diferencia===0||(r.stock>0&&Math.abs(r.diferencia)/r.stock<=0.02)).length;
+  ccSet('cc-st-tol',FMT.pct(t1/n));
+  ccSet('cc-st-tol-s','Con \u00b12%: '+FMT.pct(t2/n)+' de los art\u00edculos');
+  const mae=d3.mean(ab),rmse=Math.sqrt(d3.mean(dif,d=>d*d));
+  ccSet('cc-st-mae',mae.toFixed(2));
+  ccSet('cc-st-mae-s','uds por art\u00edculo activo \u00b7 RMSE '+rmse.toFixed(2));
+  const mean=d3.mean(dif),pv=ccSignTest(falt.length,sobr.length);
+  const pTxt=pv===null?null:(pv<0.001?'< 0.001':pv.toFixed(3));
+  ccSet('cc-st-bias',sg(mean,2));
+  document.getElementById('cc-st-bias').classList.toggle('cc-bad',mean<0);
+  ccSet('cc-st-bias-s',pv===null?'Sin diferencias para evaluar sesgo':'uds por art\u00edculo \u00b7 '+falt.length+' vs '+sobr.length+' (falt./sobr.) \u00b7 '+(pv<0.05?'sesgo significativo':'sin sesgo significativo')+' p = '+pTxt);
+  const sd=d3.deviation(dif)||0;
+  const out=sd>0?cont.filter(r=>r.diferencia!==0&&Math.abs((r.diferencia-mean)/sd)>=2):[];
+  const tot=d3.sum(ab);
+  const outPct=out.length&&tot>0?d3.sum(out,r=>Math.abs(r.diferencia))/tot:0;
+  ccSet('cc-st-out',String(out.length));
+  ccSet('cc-st-out-s','|z| \u2265 2'+(out.length&&tot>0?' \u00b7 explican '+FMT.pct(outPct)+' de las uds':''));
+  let rho=null;
+  if(n>=3){
+    const rs=ccRanks(cont.map(r=>r.stock)),re=ccRanks(ab);
+    const ms=d3.mean(rs),me=d3.mean(re);
+    let num=0,ds=0,de=0;
+    for(let i=0;i<n;i++){num+=(rs[i]-ms)*(re[i]-me);ds+=(rs[i]-ms)**2;de+=(re[i]-me)**2;}
+    if(ds>0&&de>0)rho=num/Math.sqrt(ds*de);
+  }
+  if(rho!==null){
+    const a=Math.abs(rho);
+    const lab=a<0.1?'sin relaci\u00f3n: el error no depende del volumen':(a<0.3?'relaci\u00f3n d\u00e9bil':a<0.5?'relaci\u00f3n moderada':'relaci\u00f3n fuerte')+(rho>0?': a m\u00e1s stock, m\u00e1s error':': a m\u00e1s stock, menos error');
+    ccSet('cc-st-sp',(rho<0?'\u2212':'')+a.toFixed(2));
+    ccSet('cc-st-sp-s',lab);
+  }else{ccSet('cc-st-sp','\u2014');ccSet('cc-st-sp-s','sin variaci\u00f3n suficiente');}
+  /* descriptivos */
+  const sumStock=d3.sum(cont,r=>r.stock),sumDif=d3.sum(dif);
+  const dd=(ddS||[]).slice().sort((a,b)=>Math.abs(b.diferencia)-Math.abs(a.diferencia));
+  const uAbs=d3.sum(dd,r=>Math.abs(r.diferencia));
+  let n80=0,acc=0;for(const r of dd){acc+=Math.abs(r.diferencia);n80++;if(acc>=0.8*uAbs)break;}
+  const minD=d3.min(dif),maxD=d3.max(dif);
+  const rowsD=[
+    ['Art\u00edculos activos (n)',String(n),'Base del c\u00e1lculo'],
+    ['Con diferencia',dd.length+' ('+falt.length+' falt. / '+sobr.length+' sobr.)',''],
+    ['Diferencia media',sg(mean,2)+' uds','Negativa = tiende a faltar'],
+    ['Mediana',sg(d3.median(dif),2)+' uds','0 = la mayor\u00eda cuadra'],
+    ['Desviaci\u00f3n est\u00e1ndar',sd.toFixed(2)+' uds','Dispersi\u00f3n'],
+    ['Error absoluto medio',mae.toFixed(2)+' uds','Uds de error por art\u00edculo'],
+    ['RMSE',rmse.toFixed(2)+' uds','Mucho mayor que MAE = pocos pesan mucho'],
+    ['WAPE',sumStock>0?FMT.pct(tot/sumStock):'\u2014','\u03a3|dif| \u00f7 \u03a3 stock'],
+    ['Sesgo relativo',sumStock>0?d3.format('+.2%')(sumDif/sumStock):'\u2014','\u03a3 dif \u00f7 \u03a3 stock'],
+    ['Mayor faltante / sobrante',(minD<0?sg(minD,0):'\u2014')+' / '+(maxD>0?sg(maxD,0):'\u2014'),''],
+    ['Prueba de signo (p)',pTxt===null?'\u2014':pTxt,'< 0.05 = sesgo real'],
+    ['At\u00edpicos (|z| \u2265 2)',out.length+(out.length&&tot>0?' \u00b7 '+FMT.pct(outPct)+' de uds':''),'Recontar primero'],
+    ['Art\u00edculos para el 80%',dd.length?n80+' de '+dd.length:'\u2014','Concentraci\u00f3n'],
+    ['Stock vs |dif| (\u03c1)',rho===null?'\u2014':sg(rho,2),'Cerca de 0 = no depende del volumen']
+  ];
+  rowsD.forEach(([a,b,c])=>{const tr=document.createElement('tr');tr.append(ccTd(a),ccTd(b,'num'),ccTd(c,'dk'));body.appendChild(tr);});
+}
+function drawCC(){
+  const db=dash.data('cc_base'),dd=dash.data('cc_det'),dp=dash.data('cc_procesos');
+  if(db.status!=='ok'||dd.status!=='ok')return;
+  let procRows=[];
+  if(dp.status==='ok'){
+    procRows=dp.data;
+    if(ccProc===undefined&&procRows.length){
+      ccProc=procRows.slice().sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||'')||b.con_dif-a.con_dif)[0].proc_key;
+    }
+  }
+  {
+    const ordP=procRows.slice().sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||'')||String(a.empresa).localeCompare(String(b.empresa))||Number(a.id_proceso)-Number(b.id_proceso));
+    const fs=ordP.map(r=>r.fecha||'').filter(Boolean).sort();
+    ccOrd=ordP.length>1?[{proc_key:'',all:true,n:ordP.length,fecha:fs.length?fs[fs.length-1]:''}].concat(ordP):ordP;
+  }
+  const sel=procRows.find(r=>r.proc_key===ccProc)||null;
+  ccCardSync();
+  /* tabla de procesos */
+  {
+    const tb=document.getElementById('cc-tproc-b');tb.replaceChildren();
+    procRows.forEach(r=>{
+      const tr=document.createElement('tr');tr.dataset.key=r.proc_key;
+      if(r.proc_key===ccProc)tr.classList.add('sel');
+      const sg0=v=>(v<0?'\u2212':v>0?'+':'')+FMT.int(Math.abs(v));
+      tr.append(ccTd(r.empresa),ccTd(r.almacen),ccTd(r.id_proceso+' \u00b7 '+r.desc_proceso),
+        ccTd(r.fecha?String(r.fecha).slice(0,10).split('-').reverse().join('/'):''),ccTd(FMT.int(r.articulos),'num'),
+        ccTd(FMT.int(r.con_dif),'num'+(r.con_dif>0?' hot':'')),ccTd(r.contados?FMT.pct(r.exactos/r.contados):'\u2014','num'),
+        ccTd(r.stock_total>0?FMT.pct(1-r.uds_abs/r.stock_total):'\u2014','num'),ccTd(sg0(r.uds_neto),'num'),ccTd(FMT.money2(r.valor_neto),'num'));
+      tb.appendChild(tr);
+    });
+  }
+  const dbS=sel?db.data.filter(r=>r.proc_key===ccProc):db.data;
+  const ddS=sel?dd.data.filter(r=>r.proc_key===ccProc):dd.data;
+  const cont=dbS.filter(r=>r.stock>0||r.conteo_final>0);
+  const cuad=cont.filter(r=>r.diferencia===0).length;
+  const stockT=d3.sum(cont,r=>r.stock),absU=d3.sum(ddS,r=>Math.abs(r.diferencia));
+  const falt=ddS.filter(r=>r.diferencia<0),sobr=ddS.filter(r=>r.diferencia>0);
+  const bruto=d3.sum(ddS,r=>Math.abs(r.valor)),neto=d3.sum(ddS,r=>r.valor);
+  /* KPIs */
+  {
+    const dUds=d3.sum(ddS,r=>r.diferencia);
+    const vS=d3.sum(sobr,r=>r.valor),vF=d3.sum(falt,r=>r.valor);
+    const sg=(v,f)=>(v<0?'−':v>0?'+':'')+f(Math.abs(v));
+    const m2=v=>(v<0?'−':'')+FMT.money2(Math.abs(v));
+    ccSet('cc-k-tot',FMT.int(dbS.length));
+    ccSet('cc-k-tot-s','Stock '+FMT.int(stockT)+' · contado '+FMT.int(d3.sum(dbS,r=>r.conteo_final))+' uds');
+    ccSet('cc-k-tot-s2',cont.length+' con stock o conteo · '+(dbS.length-cont.length)+' en cero');
+    ccSet('cc-k-dif',FMT.int(ddS.length));
+    ccSet('cc-k-dif-s',falt.length+(falt.length===1?' faltante':' faltantes')+' · '+sobr.length+(sobr.length===1?' sobrante':' sobrantes')+' · '+FMT.pct(cont.length?ddS.length/cont.length:0)+' de los activos');
+    ccSet('cc-k-exact',stockT>0?FMT.pct(Math.max(0,1-absU/stockT)):'—');
+    ccSet('cc-k-neta',sg(dUds,FMT.int));
+    ccSet('cc-k-neta-s',sg(d3.sum(sobr,r=>r.diferencia),FMT.int)+' sobrante · '+sg(d3.sum(falt,r=>r.diferencia),FMT.int)+' faltante');
+    ccSet('cc-k-val',m2(neto));
+    ccSet('cc-k-val-s',m2(vS)+' sobrante · '+m2(vF)+' faltante');
+    document.getElementById('cc-k-neta').classList.toggle('cc-bad',dUds<0);
+    document.getElementById('cc-k-val').classList.toggle('cc-bad',neto<0);
+  }
+  /* Texto de arriba */
+  {
+    const uniq=a=>Array.from(new Set(a.filter(Boolean)));
+    const EMP={ALFA:'ALFA DISTRIBUIDORES',TORU:'TORU TRADING'};
+    const fmtF=f=>String(f).slice(0,10).split('-').reverse().join('/');
+    const meta=(id,label,val)=>{const bb=document.getElementById(id);bb.textContent=val;bb.parentElement.firstChild.nodeValue=label+' ';};
+    const pks=uniq(dbS.map(r=>r.proc_key)),alms=uniq(dbS.map(r=>r.almacen)),provs=uniq(dbS.map(r=>r.proveedor)),fechas=uniq(dbS.map(r=>r.fecha)).sort();
+    meta('cc-m-emp','Empresa',uniq(dbS.map(r=>r.empresa)).map(e=>EMP[e]||e).join(' \u00b7 ')||'\u2014');
+    if(pks.length===1)meta('cc-m-proc','Proceso',dbS[0].id_proceso+(dbS[0].desc_proceso?' \u00b7 '+dbS[0].desc_proceso:''));
+    else meta('cc-m-proc','Procesos',pks.length?String(pks.length):'\u2014');
+    meta('cc-m-alm',alms.length>1?'Almacenes':'Almac\u00e9n',alms.length>2?String(alms.length):alms.join(' \u00b7 ')||'\u2014');
+    meta('cc-m-fec','Fecha',fechas.map(fmtF).join(' \u2013 ')||'\u2014');
+    meta('cc-m-prov',provs.length>1?'Proveedores':'Proveedor',provs.length>2?provs.length+' proveedores':provs.join(' \u00b7 ')||'\u2014');
+    const lead=document.getElementById('cc-lead');
+    const m2=v=>(v<0?'\u2212':'')+FMT.money2(Math.abs(v));
+    const B=t=>'<b>'+t+'</b>';
+    if(!dbS.length)lead.textContent='No hay art\u00edculos en esta selecci\u00f3n.';
+    else if(!ddS.length)lead.innerHTML=B(FMT.int(dbS.length))+' art\u00edculos contados y ninguno tiene diferencia.';
+    else{
+      let h=B(FMT.int(ddS.length))+' de '+B(FMT.int(cont.length))+' art\u00edculos con stock o conteo tienen diferencia ('+B(FMT.int(falt.length))+(falt.length===1?' faltante, ':' faltantes, ')+B(FMT.int(sobr.length))+(sobr.length===1?' sobrante). ':' sobrantes). ');
+      h+='La valorizaci\u00f3n neta es '+B(m2(neto))+' ('+B(m2(d3.sum(sobr,r=>r.valor)))+' de sobrante y '+B(m2(d3.sum(falt,r=>r.valor)))+' de faltante). ';
+      const top=ddS.map(r=>Math.abs(r.diferencia)).sort((a,b)=>b-a).slice(0,3),uAbs=d3.sum(ddS,r=>Math.abs(r.diferencia));
+      if(ddS.length>top.length&&uAbs>0)h+=B(top.length)+' art\u00edculos concentran '+B(FMT.pct(d3.sum(top)/uAbs))+' de las unidades descuadradas.';
+      lead.innerHTML=h;
+    }
+  }
+  /* Resumen: concentración, tamaño, proveedor, alertas */
+  {
+    const top=ddS.slice().sort((a,b)=>Math.abs(b.valor)-Math.abs(a.valor)).slice(0,5).filter(r=>r.valor!==0);
+    const acum=d3.sum(top,r=>Math.abs(r.valor));
+    ccSet('cc-pareto-h',top.length&&bruto>0?'top '+top.length+' = '+FMT.pct0(acum/bruto):'top 5');
+    ccBarRows('cc-tpareto-b',top.map(r=>({label:r.descripcion||r.articulo,w:Math.abs(r.valor),txt:FMT.money(Math.abs(r.valor))+' · '+FMT.pct0(bruto>0?Math.abs(r.valor)/bruto:0),color:r.diferencia<0?'var(--color-bad)':'var(--color-fg)'})),'Sin diferencias');
+  }
+  {
+    const g={};
+    cont.forEach(r=>{
+      const k=r.proveedor||'Sin proveedor';
+      if(!g[k])g[k]={k:k,n:0,dif:0,val:0};
+      g[k].n++;if(r.diferencia!==0)g[k].dif++;g[k].val+=Math.abs(r.valor);
+    });
+    const rows=Object.values(g).sort((a,b)=>b.val-a.val||b.dif-a.dif).slice(0,6);
+    ccBarRows('cc-tprov-b',rows.map(r=>({label:r.k,w:r.val,txt:FMT.money(r.val)+' · '+r.dif+'/'+r.n+' art.'})),'Sin datos');
+  }
+  /* Artículos */
+  drawCCChart(ddS);
+  {
+    const RES={Faltante:0,Sobrante:1,Cuadra:2,'Sin stock':3};
+    const cnt={Faltante:0,Sobrante:0,Cuadra:0,'Sin stock':0};dbS.forEach(r=>{cnt[r.resultado]=(cnt[r.resultado]||0)+1;});
+    const leg=document.getElementById('cc-leg');leg.replaceChildren();
+    Object.keys(RES).forEach(k=>{const sp=document.createElement('span');sp.append(ccPill(ccResCls(k),k),' '+FMT.int(cnt[k]||0));leg.appendChild(sp);});
+    const q=ccNorm(ccQ.trim());
+    const rows=dbS.slice().sort((a,b)=>RES[a.resultado]-RES[b.resultado]||Math.abs(b.diferencia)-Math.abs(a.diferencia)||String(a.descripcion).localeCompare(String(b.descripcion)))
+      .filter(r=>!q||ccNorm(r.articulo+' '+r.descripcion+' '+r.id_proceso+' '+r.desc_proceso).includes(q));
+    const tb=document.getElementById('cc-tall-b');
+    tb.replaceChildren(...rows.slice(0,300).map(r=>{
+      const tr=document.createElement('tr');tr.className='row-'+r.resultado.replace(' ','-');
+      const difTd=ccTd(FMT.signed(r.diferencia),'num');
+      if(r.diferencia<0)difTd.style.color='var(--color-bad)';
+      const rsTd=document.createElement('td');rsTd.appendChild(ccPill(ccResCls(r.resultado),r.resultado));
+      tr.append(ccTd(r.empresa+' '+r.id_proceso,'code'),ccTd(r.articulo,'code'),ccTd(r.descripcion),ccTd(FMT.int(r.stock),'num'),ccTd(FMT.int(r.conteo_final),'num'),difTd,rsTd);
+      return tr;
+    }));
+    ccSet('cc-count',(rows.length>300?'300 de ':'')+FMT.int(rows.length)+' art\u00edculos');
+  }
+  {
+    const rows=ddS.slice().sort((a,b)=>Math.abs(b.valor)-Math.abs(a.valor)||Math.abs(b.diferencia)-Math.abs(a.diferencia));
+    const tb=document.getElementById('cc-tplan-b');tb.replaceChildren();
+    if(!rows.length){const tr=document.createElement('tr');const td=ccTd('Sin diferencias en esta selecci\u00f3n.','dk');td.colSpan=11;tr.appendChild(td);tb.appendChild(tr);}
+    rows.forEach(r=>{
+      const tr=document.createElement('tr');
+      const difTd=ccTd(FMT.signed(r.diferencia),'num');if(r.diferencia<0)difTd.style.color='var(--color-bad)';
+      const vTd=ccTd(r.costo===0?'costo 0':FMT.money2(r.valor),'num');if(r.valor<0)vTd.style.color='var(--color-bad)';
+      const prTd=document.createElement('td');prTd.appendChild(ccPill(r.prioridad==='Alta'?'bad':r.prioridad==='Media'?'warn':'muted',r.prioridad));
+      const esTd=document.createElement('td');esTd.appendChild(ccPill(ccEstadoCls(r.estado),r.estado));
+      tr.append(ccTd(r.empresa+' '+r.id_proceso,'code'),ccTd(r.articulo,'code'),ccTd(r.descripcion),ccTd(FMT.int(r.stock),'num'),ccTd(FMT.int(r.conteo_final),'num'),difTd,vTd,prTd,esTd,ccTd(r.accion,'act'),ccTd(r.observacion||''));
+      tb.appendChild(tr);
+    });
+  }
+  /* Calidad */
+  ccStats(cont,falt,sobr,ddS);
+  {
+    const g={};
+    ddS.forEach(r=>{
+      const k=r.causa||'Por analizar';
+      if(!g[k])g[k]={causa:k,n:0,unidades:0};
+      g[k].n++;g[k].unidades+=Math.abs(r.diferencia);
+    });
+    const causas=Object.values(g).sort((a,b)=>b.unidades-a.unidades);
+    ccBarRows('cc-tcausa-b',causas.map(r=>({label:r.causa,w:r.unidades,txt:FMT.int(r.unidades)+' uds \u00b7 '+r.n+' art.',color:r.causa==='Por analizar'?'var(--cds-chart-muted)':'var(--color-bad)'})),'Sin diferencias en esta selecci\u00f3n.');
+  }
+  {
+    const c=f=>dbS.filter(f).length;
+    const r2=v=>Math.round(v*100)/100;
+    const rows=[
+      ['Diferencia en art\u00edculo con costo 0',c(r=>r.diferencia!==0&&r.costo===0)],
+      ['Diferencia sin reconteo registrado',c(r=>r.diferencia!==0&&!r.reconteo1&&!r.reconteo2)],
+      ['Grupo o subgrupo vac\u00edo',c(r=>!r.grupo||!r.subgrupo)],
+      ['Costo unitario en 0 (no promoci\u00f3n)',c(r=>r.costo===0&&r.linea==='Regular')],
+      ['DIFERENCIA del Excel no cuadra con el conteo',c(r=>r.dif_excel!==null&&r.dif_excel!==r.diferencia)],
+      ['TOTAL del Excel no cuadra con diferencia \u00d7 costo',c(r=>r.total_excel!==null&&Math.abs(r.total_excel-r2(r.valor))>0.01)],
+      ['Stock y conteo en cero',c(r=>r.stock===0&&r.conteo_final===0)]
+    ];
+    const tb=document.getElementById('cc-tcal-b');tb.replaceChildren();
+    rows.forEach(([a,n])=>{const tr=document.createElement('tr');tr.append(ccTd(a),ccTd(FMT.int(n),'num'));tb.appendChild(tr);});
+  }
+}
+function drawCCChart(rows){
+  const box=document.getElementById('cc-chart');
+  box.replaceChildren();
+  if(!rows.length){
+    const d=document.createElement('div');d.className='ax-fail';d.textContent='Sin diferencias';box.appendChild(d);return;
+  }
+  const rowH=30,mT=6,mB=26,mR=44;
+  const h=mT+mB+rows.length*rowH;
+  const k=mkSvg(box,h),svg=k.svg,w=k.w;
+  svg.attr('role','img').attr('aria-label','Diferencia por art\u00edculo: conteo menos stock del sistema, en unidades');
+  const cut=(s,n)=>s.length>n?s.slice(0,n-1)+'\u2026':s;
+  const maxLab=Math.max(8,Math.floor((w*0.34)/6.2));
+  const labs=rows.map(r=>cut(String(r.descripcion||r.articulo),maxLab));
+  const mL=Math.ceil(k.meas(labs))+22;
+  const lo=Math.min(0,d3.min(rows,r=>r.diferencia)),hi=Math.max(0,d3.max(rows,r=>r.diferencia));
+  const x=d3.scaleLinear([lo,hi],[mL+34,w-mR]).nice();
+  const y0=mT,bw=rowH-9;
+  x.ticks(5).forEach(t=>{
+    svg.append('line').attr('x1',x(t)).attr('x2',x(t)).attr('y1',y0).attr('y2',h-mB).style('stroke','var(--cds-chart-grid)');
+    svg.append('text').attr('x',x(t)).attr('y',h-8).attr('text-anchor','middle').attr('font-size',11).style('fill','var(--color-fg-muted)').text(t>0?'+'+nf(t):t<0?'\u2212'+nf(-t):'0');
+  });
+  svg.append('line').attr('x1',x(0)).attr('x2',x(0)).attr('y1',y0).attr('y2',h-mB).style('stroke','var(--color-fg-muted)');
+  rows.forEach((r,i)=>{
+    const cy=y0+i*rowH+rowH/2,neg=r.diferencia<0;
+    svg.append('text').attr('x',mL).attr('y',cy+4).attr('text-anchor','end').attr('font-size',11).style('fill','var(--color-fg)').text(labs[i]);
+    svg.append('rect').attr('x',Math.min(x(0),x(r.diferencia))).attr('width',Math.max(2,Math.abs(x(r.diferencia)-x(0)))).attr('y',cy-bw/2).attr('height',bw).attr('rx',3)
+      .style('fill',neg?'var(--color-bad)':'var(--color-fg)').attr('opacity',neg?1:0.85);
+    svg.append('text').attr('x',neg?x(r.diferencia)-6:x(r.diferencia)+6).attr('y',cy+4).attr('text-anchor',neg?'end':'start').attr('font-size',12)
+      .style('fill',neg?'var(--color-bad)':'var(--color-fg)').style('font-weight',500).text(FMT.signed(r.diferencia));
+  });
+  svg.append('g').selectAll('rect').data(rows).join('rect').attr('x',0).attr('width',w).attr('y',(r,i)=>y0+i*rowH).attr('height',rowH).attr('fill','transparent')
+    .on('mousemove',(e,r)=>{
+      k.tip.style('display','block');k.tip.selectAll('*').remove();
+      k.tip.append('div').style('font-weight',500).text(r.descripcion);
+      k.tip.append('div').append('span').text(r.articulo+' \u00b7 '+r.id_proceso);
+      k.tip.append('div').text('Stock '+FMT.int(r.stock)+' \u00b7 Conteo '+FMT.int(r.conteo_final)+' \u00b7 Dif. '+FMT.signed(r.diferencia));
+      k.tip.append('div').append('span').text('Valor '+FMT.money(r.valor));
+      const b=box.getBoundingClientRect(),tw=k.tip.node().offsetWidth;
+      k.tip.style('left',Math.max(4,Math.min(e.clientX-b.left+12,b.width-tw-4))+'px').style('top',Math.max(4,e.clientY-b.top-10)+'px');
+    })
+    .on('mouseleave',()=>k.tip.style('display','none'));
+}
+function ccNorm(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');}
+document.getElementById('cc-q').addEventListener('input',e=>{ccQ=e.target.value;drawCC();});
+document.getElementById('cc-tproc-b').addEventListener('click',e=>{
+  const tr=e.target.closest('tr[data-key]');if(!tr)return;
+  const ni=ccOrd.findIndex(r=>r.proc_key===tr.dataset.key);
+  if(ni>=0)ccGo(0,ni);
+});
+document.getElementById('cc-prev').addEventListener('click',()=>ccGo(-1));
+document.getElementById('cc-next').addEventListener('click',()=>ccGo(1));
+ccCardEl.addEventListener('click',()=>ccGo(1));
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('pg-cc').hidden)return;
+  const t=e.target&&e.target.tagName;if(t==='INPUT'||t==='TEXTAREA'||t==='SELECT')return;
+  if(e.key==='ArrowRight'){e.preventDefault();ccGo(1);}
+  else if(e.key==='ArrowLeft'){e.preventDefault();ccGo(-1);}
+});
 </script>
 
 </main>
 <aside id="ia-panel" aria-label="Asistente IA"></aside>
 </div>
 <button id="ia-handle" type="button" title="Mostrar u ocultar el Asistente IA" aria-label="Mostrar u ocultar el Asistente IA">»</button>
-<script src="ia.js?v=2a66a2dd61"></script>
+<script src="ia.js?v=a257cd7e31"></script>
 </body></html>

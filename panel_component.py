@@ -29,6 +29,9 @@ COLUMNAS = {
     "sku_venta": ["sku", "ult_venta", "unidades", "venta", "costo_sin_igv"],
     "almacenes_real": ["id", "almacen", "capacidad", "usado_alfa", "usado_toru", "usado_total", "libre", "pct_total", "pct_alfa", "pct_toru", "vitrina", "uni_alfa", "uni_toru", "monto_alfa", "monto_toru"],
     "abc_xyz_nuevo": ["empresa", "producto_id", "producto", "categoria", "segmento", "stock", "valor"],
+    "cc_maestro": ["empresa", "fecha", "id_proceso", "almacen", "desc_proceso", "articulo", "descripcion", "um", "stock", "conteo",
+                   "reconteo1", "reconteo2", "diferencia", "costo_unitario", "total", "proveedor", "grupo", "subgrupo", "marca", "nro_ajuste"],
+    "cc_causas": ["empresa", "id_proceso", "articulo", "causa", "estado", "observacion"],
 }
 # nombre en la página -> nombre del archivo en la app
 ORIGEN = {"almacenes_real": "almacenes", "abc_xyz_nuevo": "abc_xyz"}

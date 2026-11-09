@@ -306,7 +306,7 @@
   /* ---------- Envío a Python ---------- */
   function nuevoId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
   function contexto() {
-    var pg = ['pn', 'po', 'alm', 'pl'].find(function (n) { var e = document.getElementById('pg-' + n); return e && !e.hidden; }) || 'pn';
+    var pg = ['pn', 'po', 'alm', 'pl', 'cc'].find(function (n) { var e = document.getElementById('pg-' + n); return e && !e.hidden; }) || 'pn';
     var cb = document.querySelector('#pl-crit button[aria-selected="true"]');
     var v = function (id) { var e = document.getElementById(id); return e ? e.value : null; };
     return { params: dash.params(), pestana: pg, criterio_obsoleto: cb ? cb.dataset.c : null, buscar_obsoleto: v('pl-oq') || '',
@@ -846,6 +846,21 @@
         if (acc.obsoleto.buscar != null) fijar('pl-oq', acc.obsoleto.buscar === '' ? ' ' : acc.obsoleto.buscar);
         if (acc.obsoleto.buscar === '') fijar('pl-oq', '');
         foco = document.getElementById('pl-otb') || foco;
+      }
+      if (acc.conteo) {
+        // Conteo cíclico: elegir un proceso (clic en su fila) o "todos" (primera tarjeta). Tras pintar la pestaña.
+        setTimeout(function () {
+          try {
+            var proc = String(acc.conteo.proceso || '');
+            if (proc === 'todos') {
+              if (typeof ccGo === 'function' && typeof ccOrd !== 'undefined') { var i = ccOrd.findIndex(function (r) { return r.all; }); if (i >= 0) ccGo(0, i); }
+            } else {
+              var fila = [].slice.call(document.querySelectorAll('#cc-tproc-b tr[data-key]')).find(function (tr) { return tr.dataset.key.split('|').pop() === proc; });
+              if (fila) fila.click();
+            }
+          } catch (e) { console.error('Conteo cíclico', e); }
+        }, 120);
+        foco = document.getElementById('cc-kpis') || foco;
       }
       if (acc.planificador) {
         var p = acc.planificador;

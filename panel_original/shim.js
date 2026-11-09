@@ -4,11 +4,13 @@
  * dash.onData, dash.params, dash.setParams, dash.resetParams, dash.setLink, dash.refresh y dash.colors. */
 (function () {
   'use strict';
-  var calcs = {}, loaders = {}, callbacks = [], cache = {}, raw = null, params = {}, version = null, cargando = null;
+  // Valores por defecto de los filtros, como en el panel de Claude (resetParams vuelve a ellos)
+  var DEF = { so_n: 10 };
+  var calcs = {}, loaders = {}, callbacks = [], cache = {}, raw = null, params = Object.assign({}, DEF), version = null, cargando = null;
 
   function compute(id) {
     if (cache[id]) return cache[id];
-    if (!raw) return { status: 'loading', data: null };
+    if (!raw) return { status: 'loading', data: null, rows: [], columns: [], message: '' };
     var r;
     try {
       if (Object.prototype.hasOwnProperty.call(raw, id)) {
@@ -25,6 +27,10 @@
       console.error('Error en ' + id, e);
       r = { status: 'error', data: null, error: String(e && e.message || e) };
     }
+    // Mismos campos que el entorno de Claude: rows, columns y message además de data y error
+    r.rows = r.data || [];
+    r.columns = Array.isArray(r.data) && r.data[0] && typeof r.data[0] === 'object' ? Object.keys(r.data[0]) : [];
+    r.message = r.error || '';
     cache[id] = r;
     return r;
   }
@@ -45,7 +51,7 @@
       Object.keys(o || {}).forEach(function (k) { if (o[k] === null || o[k] === undefined) delete params[k]; else params[k] = o[k]; });
       fire();
     },
-    resetParams: function () { params = {}; fire(); },
+    resetParams: function () { params = Object.assign({}, DEF); fire(); },
     setLink: function () {},
     refresh: function () { fire(); },
     _setData: function (d, v) { version = v; raw = d; cache = {}; fire(); }

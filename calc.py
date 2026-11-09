@@ -31,6 +31,8 @@ DATASETS = {
     "sku_venta": ("sku_venta.csv", ["unidades", "venta", "costo_sin_igv"]),
     "abc_xyz": ("abc_xyz.csv", ["stock", "valor", "longitud", "ancho", "alto", "peso"]),
     "almacenes": ("almacenes.json", []),
+    "cc_maestro": ("cc_maestro.csv", ["stock", "conteo", "reconteo1", "reconteo2", "diferencia", "costo_unitario", "total"]),
+    "cc_causas": ("cc_causas.csv", []),
 }
 
 DESCRIPCIONES = {
@@ -40,10 +42,34 @@ DESCRIPCIONES = {
     "sellout_tienda_prov": "Sell out por mes, tienda ('01' = ALFA, '02' = TORU) y proveedor: venta con IGV y costo_sin_igv.",
     "sku_venta": "Por SKU del sell out: ult_venta (fecha de la última venta, YYYY-MM-DD), unidades, venta con IGV y costo_sin_igv.",
     "abc_xyz": "Productos de ALFA y TORU (empresa) con producto_id, producto, categoria, segmento ABC-XYZ, stock, valor (Stock Valorizado), medidas en cm (longitud, ancho, alto) y peso. Los códigos TORU llevan una T delante del código ALFA.",
+    "cc_maestro": "Conteo cíclico (resumen_general_diferencias de SharePoint): una fila por artículo contado en cada proceso de conteo: empresa, fecha, id_proceso, almacen, desc_proceso, articulo, descripcion, um, stock (sistema), conteo, reconteo1, reconteo2, diferencia, costo_unitario, total, proveedor, grupo, subgrupo, marca, nro_ajuste.",
+    "cc_causas": "Causas de las diferencias del conteo cíclico, de carga manual: empresa, id_proceso, articulo, causa, estado, observacion.",
     "almacenes": "4 almacenes físicos: id, almacen, capacidad, usado_alfa, usado_toru, usado_total, libre (todo en m³), pct_total/pct_alfa/pct_toru (en %), vitrina (m³ de vitrina/cuarentena), uni_alfa, uni_toru, monto_alfa, monto_toru.",
 }
 
-TEXT_COLS = {"sku", "producto_id", "id", "id_proveedor", "tienda", "mes", "ult_venta", "clase", "segmento"}
+TEXT_COLS = {"sku", "producto_id", "id", "id_proveedor", "tienda", "mes", "ult_venta", "clase", "segmento", "id_proceso", "articulo"}
+
+# resumen_general_diferencias.csv tal como sale del sistema -> columnas que usa el panel (cc_maestro)
+COLS_CONTEO = {
+    "EMPRESA": "empresa", "Id_ExsInv": "id_proceso", "Articulo": "desc_proceso", "NroAjusteGP": "nro_ajuste",
+    "Número de art.": "articulo", "Descripción Art.": "descripcion", "UM": "um", "Stock": "stock", "CONTEO": "conteo",
+    "RECONTEO1": "reconteo1", "RECONTEO2": "reconteo2", "DIFERENCIA": "diferencia", "COSTO_UNITARIO": "costo_unitario",
+    "TOTAL": "total", "Nombre proveedor": "proveedor", "GRUPO": "grupo", "SUBGRUPO": "subgrupo", "MARCA": "marca",
+}
+ORDEN_CONTEO = ["empresa", "fecha", "id_proceso", "almacen", "desc_proceso", "articulo", "descripcion", "um", "stock", "conteo",
+                "reconteo1", "reconteo2", "diferencia", "costo_unitario", "total", "proveedor", "grupo", "subgrupo", "marca", "nro_ajuste"]
+
+
+def normalizar_conteo(df: pd.DataFrame) -> pd.DataFrame:
+    """Convierte el archivo original del sistema al formato del panel; si ya viene normalizado, lo deja igual."""
+    if "id_proceso" in df.columns:
+        return df
+    if "Id_ExsInv" not in df.columns:
+        raise ValueError("el archivo de conteo cíclico no trae las columnas esperadas (Id_ExsInv, NombreAlmacen, …)")
+    out = df.rename(columns=COLS_CONTEO)
+    out["fecha"] = df["FecInv"].astype(str).str.slice(0, 10)
+    out["almacen"] = df["NombreAlmacen"].astype(str).str.strip() + " (" + df["LocnCode"].astype(str).str.strip() + ")"
+    return out[[c for c in ORDEN_CONTEO if c in out.columns]]
 
 
 def _limpiar(df: pd.DataFrame, num_cols: list[str]) -> pd.DataFrame:
@@ -161,6 +187,11 @@ def leer_subido(clave: str, archivo) -> pd.DataFrame:
         df = _limpiar(df, nums)
     else:
         df = leer_csv(archivo, nums)
+    if clave == "cc_maestro":
+        df = normalizar_conteo(df)
+        for c in nums:
+            if c in df.columns:
+                df[c] = pd.to_numeric(df[c], errors="coerce")
     # Nombres alternativos del CSV de SharePoint dashboard_abcxyz.csv
     if clave == "abc_xyz":
         ren = {"producto_nombre": "producto", "segmento_abcxyz": "segmento", "stock_actual": "stock",

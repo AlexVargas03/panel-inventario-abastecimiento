@@ -16,6 +16,8 @@ La configuración va en los Secrets de Streamlit, nunca en el código:
     inventario  = "inventario.xlsx"
     abc_xyz     = "dashboard_abcxyz.csv"
     almacenes   = "dashboard_inventarios.xlsx"
+    cc_maestro  = "resumen_general_diferencias.csv"   # conteo cíclico, tal como sale del sistema
+    cc_causas   = ""                         # vacío = no está en SharePoint (carga manual)
     # un Excel con varias hojas: "archivo.xlsx#NombreHoja"
 
 Para probar la conexión desde la carpeta del proyecto (lee .streamlit/secrets.toml):
@@ -136,7 +138,9 @@ class _Subido(io.BytesIO):
 def nombres(cfg: dict) -> dict[str, str]:
     """Archivo de SharePoint para cada dato del panel (por defecto, el mismo nombre que en data/)."""
     propios = cfg.get("archivos") or {}
-    return {clave: str(propios.get(clave) or archivo) for clave, (archivo, _) in calc.DATASETS.items()}
+    # nombre vacío = ese dato no está en SharePoint (por ejemplo, una carga manual): se usa el de data/ sin avisar
+    return {clave: str(propios[clave] if clave in propios else archivo) for clave, (archivo, _) in calc.DATASETS.items()
+            if not (clave in propios and not str(propios[clave]).strip())}
 
 
 def leer(clave: str, datos: bytes, nombre: str) -> pd.DataFrame:

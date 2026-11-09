@@ -112,6 +112,8 @@ ETIQUETAS = {
     "sellout_proveedor": "Sell out por proveedor (sellout_proveedor.csv)",
     "sellout_tienda_prov": "Sell out por tienda y proveedor (sellout_tienda_prov.csv)",
     "sku_venta": "Venta por SKU (sku_venta.csv)",
+    "cc_maestro": "Conteo cíclico (resumen_general_diferencias.csv)",
+    "cc_causas": "Causas del conteo cíclico (cc_causas.csv)",
 }
 
 subidos = st.session_state.setdefault("subidos", {})

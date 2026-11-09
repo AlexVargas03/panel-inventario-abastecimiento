@@ -3,3 +3,13 @@ __pycache__/
 *.pyc
 .venv/
 panel_original/datos_*.json
+
+# Resultados de las evaluaciones (se regeneran)
+evals/resultados/
+
+# Captura que deja el despertador si falla
+despertar_fallo.png
+
+# Exportaciones del panel de Claude (traen datos reales)
+*.zip
+entrada/
