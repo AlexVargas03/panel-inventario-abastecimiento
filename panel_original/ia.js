@@ -30,6 +30,7 @@
     ok: svg('<polyline points="20 6 9 17 4 12"/>'),
     enviar: svg('<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>'),
     descarga: svg('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'),
+    doc: svg('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>'),
     filtro: svg('<polygon points="22 3 2 3 10 12.5 10 19 14 21 14 12.5 22 3"/>'),
     alerta: svg('<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'),
     info: svg('<circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="12" y1="8" x2="12.01" y2="8"/>'),
@@ -282,7 +283,7 @@
   function corto(v, f) {
     if (v == null) return '';
     if (f === 'pct') return d3.format('.0%')(v);
-    var s = d3.format('~s')(v).replace('G', 'B');
+    var s = d3.format('.3~s')(v).replace('G', 'B');
     return f === 'money' ? 'S/ ' + s : s;
   }
 
@@ -492,7 +493,117 @@
     return el;
   }
 
-  var BLOQUES = { table: bloqueTabla, kpis: bloqueKpis, alertas: bloqueAlertas, ficha: bloqueFicha, acciones: bloqueAcciones, comparativa: bloqueComparativa };
+  /* ---------- Informe descargable en PDF ----------
+   * { type:'informe', titulo, subtitulo, fecha, resumen:[], secciones:[{ titulo, texto, bloques:[] }], recomendaciones:[], nota }
+   * En el chat se ve una tarjeta; al descargar se arma un documento A4 con los mismos bloques
+   * y se abre el diálogo de impresión ("Guardar como PDF"). Los gráficos salen vectoriales. */
+  function bloqueInforme(b) {
+    var el = document.createElement('div'); el.className = 'ia-blk ia-inf';
+    var secs = b.secciones || [];
+    var nBloques = secs.reduce(function (a, s) { return a + (s.bloques || []).length; }, 0);
+    var partes = ['Resumen ejecutivo'].concat(secs.map(function (s) { return s.titulo; }));
+    if ((b.recomendaciones || []).length) partes.push('Recomendaciones');
+    el.innerHTML = '<div class="ia-inf-h"><span class="ia-inf-ic">' + IC.doc + '</span><div><b>' + esc(b.titulo) + '</b>' +
+      (b.subtitulo ? '<small>' + esc(b.subtitulo) + '</small>' : '') + '</div></div>' +
+      '<ol class="ia-inf-s">' + partes.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ol>' +
+      '<div class="ia-inf-f"><span>' + secs.length + ' secciones · ' + nBloques + ' gráficos y tablas</span>' +
+      '<button type="button" class="ia-inf-btn">' + IC.descarga + '<span>Descargar PDF</span></button></div>';
+    var boton = $('.ia-inf-btn', el);
+    boton.onclick = function () {
+      boton.disabled = true; boton.classList.add('cargando');
+      imprimirInforme(b, function () { boton.disabled = false; boton.classList.remove('cargando'); });
+    };
+    return el;
+  }
+
+  var taller = null;    // lienzo fuera de pantalla donde se dibujan los gráficos del informe a su ancho final
+  function bloqueParaInforme(x) {
+    if (x.type === 'chart') {
+      if (!taller) { taller = document.createElement('div'); taller.style.cssText = 'position:fixed;left:-10000px;top:0;width:700px'; document.body.appendChild(taller); }
+      var el = document.createElement('div'); el.className = 'ia-blk';
+      el.innerHTML = '<div class="ia-blk-h">' + IC.grafico + '<span>' + esc(x.titulo) + '</span></div><div class="ia-ch"></div><div class="ia-leg"></div>';
+      taller.appendChild(el);
+      try { dibujar($('.ia-ch', el), $('.ia-leg', el), x, true); } catch (e) { $('.ia-ch', el).textContent = 'No se pudo dibujar el gráfico.'; }
+      var html = el.outerHTML; el.remove();
+      return html;
+    }
+    var f = BLOQUES[x.type];
+    return f ? f(x).outerHTML : '';
+  }
+
+  var CSS_INFORME = [
+    '@page{size:A4;margin:14mm 13mm 15mm}',
+    '*{animation:none!important;transition:none!important}',
+    'html,body{height:auto!important;overflow:visible!important;background:#fff!important}',
+    'body.inf-doc{max-width:760px;margin:0 auto;padding:28px 24px;color:#1d1d1b;font-size:12.5px;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+    '@media print{body.inf-doc{padding:0;max-width:none}}',
+    '.inf-cab{border-radius:16px;padding:22px 24px 20px;color:#fff;margin-bottom:18px;background:radial-gradient(120% 140% at 0% 0%,rgba(255,255,255,.18),rgba(255,255,255,0) 45%),linear-gradient(135deg,#cf2430,#b3151f 55%,#8f0d16)}',
+    '.inf-marca{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;opacity:.8}',
+    '.inf-cab h1{margin:6px 0 3px;font-size:22px;line-height:1.2;letter-spacing:-.4px}',
+    '.inf-cab p{margin:0;font-size:12px;opacity:.9}',
+    '.inf-fecha{margin-top:12px;font-size:10px;opacity:.75}',
+    '.inf-doc h2{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:14.5px;color:#b3151f;break-after:avoid}',
+    '.inf-doc h2 span{display:inline-grid;place-items:center;min-width:22px;height:22px;border-radius:7px;background:#fbeff0;font-size:11px}',
+    '.inf-res{background:#fcf8f8;border:1px solid #f1dcdd;border-radius:14px;padding:14px 18px;margin-bottom:20px;break-inside:avoid}',
+    '.inf-res ul,.inf-txt ul,.inf-rec ol{margin:4px 0 6px;padding-left:18px}',
+    '.inf-res li,.inf-txt li,.inf-rec li{margin:4px 0}',
+    '.inf-txt p{margin:4px 0}',
+    '.inf-sec{margin:0 0 20px}',
+    '.inf-sec .ia-blk,.inf-sec .ia-kpis{break-inside:avoid;margin-top:10px;box-shadow:none}',
+    '.inf-sec .ia-tw{max-height:none!important;overflow:visible!important}',
+    '.inf-sec .ia-exp,.inf-sec .ia-sig{display:none!important}',
+    '.inf-rec{break-inside:avoid;border-left:3px solid #b3151f;padding:2px 0 2px 14px;margin-bottom:18px}',
+    '.inf-nota{margin-top:22px;padding-top:10px;border-top:1px solid #e6e4e0;font-size:10px;color:#7a7873}'
+  ].join('\n');
+
+  function informeHTML(b) {
+    var hojas = [].slice.call(document.querySelectorAll('link[rel="stylesheet"]')).map(function (l) { return '<link rel="stylesheet" href="' + esc(l.href) + '">'; }).join('');
+    var secs = (b.secciones || []).map(function (s, i) {
+      return '<section class="inf-sec"><h2><span>' + (i + 1) + '</span>' + esc(s.titulo) + '</h2>' +
+        (s.texto ? '<div class="inf-txt">' + md(s.texto) + '</div>' : '') +
+        (s.bloques || []).map(bloqueParaInforme).join('') + '</section>';
+    }).join('');
+    var lista = function (xs, tag) { return '<' + tag + '>' + xs.map(function (x) { return '<li>' + inline(x) + '</li>'; }).join('') + '</' + tag + '>'; };
+    return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>' + esc(b.titulo) + '</title>' + hojas +
+      '<style>' + CSS_INFORME + '</style></head><body class="inf-doc">' +
+      '<header class="inf-cab"><div class="inf-marca">Panel de Inventario y Abastecimiento · ALFA / TORU</div>' +
+      '<h1>' + esc(b.titulo) + '</h1>' + (b.subtitulo ? '<p>' + esc(b.subtitulo) + '</p>' : '') +
+      '<div class="inf-fecha">Generado el ' + esc(b.fecha || '') + ' por el asistente IA</div></header>' +
+      ((b.resumen || []).length ? '<section class="inf-res"><h2>Resumen ejecutivo</h2>' + lista(b.resumen, 'ul') + '</section>' : '') +
+      secs +
+      ((b.recomendaciones || []).length ? '<section class="inf-rec"><h2>Recomendaciones</h2>' + lista(b.recomendaciones, 'ol') + '</section>' : '') +
+      (b.nota ? '<footer class="inf-nota">' + inline(b.nota) + '</footer>' : '') +
+      '</body></html>';
+  }
+
+  /* Escribe el informe en un marco fuera de pantalla, espera a que carguen los estilos y abre
+   * el diálogo de impresión. Si el navegador no deja imprimir, se descarga el informe en HTML. */
+  function imprimirInforme(b, listo) {
+    var html = informeHTML(b);
+    var nombre = (b.titulo || 'informe').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'informe';
+    var fr = document.createElement('iframe');
+    fr.setAttribute('aria-hidden', 'true');
+    fr.style.cssText = 'position:fixed;left:-10000px;top:0;width:820px;height:1100px;border:0';
+    document.body.appendChild(fr);
+    var fin = function () { listo && listo(); setTimeout(function () { fr.remove(); }, 1500); };
+    try {
+      var d = fr.contentDocument; d.open(); d.write(html); d.close();
+      var t0 = Date.now();
+      (function esperar() {
+        var hojas = [].slice.call(d.querySelectorAll('link[rel="stylesheet"]'));
+        var cargadas = hojas.every(function (l) { return !!l.sheet; });
+        if (!cargadas && Date.now() - t0 < 3000) return setTimeout(esperar, 100);
+        try { fr.contentWindow.focus(); fr.contentWindow.print(); }
+        catch (e) { window.descargar(nombre + '.html', html, 'text/html;charset=utf-8'); }
+        fin();
+      })();
+    } catch (e) {
+      window.descargar(nombre + '.html', html, 'text/html;charset=utf-8');
+      fin();
+    }
+  }
+
+  var BLOQUES = { table: bloqueTabla, kpis: bloqueKpis, alertas: bloqueAlertas, ficha: bloqueFicha, acciones: bloqueAcciones, comparativa: bloqueComparativa, informe: bloqueInforme };
 
   /* ---------- Gráficos (d3) ---------- */
   function showTip(e, html) { tip.innerHTML = html; tip.hidden = false; tip.style.left = (e.clientX + 12) + 'px'; tip.style.top = (e.clientY - 28) + 'px'; }

@@ -584,3 +584,25 @@ body.ia-volando .ia-saludo #ia-cab{visibility:visible}
   animation:ia-cob .6s var(--ia-ease) both}
 .ia-cmp-v:nth-child(3) .ia-cmp-b i{animation-delay:.06s}.ia-cmp-v:nth-child(4) .ia-cmp-b i{animation-delay:.12s}
 @media (prefers-reduced-motion:reduce){.ia-cmp-b i{animation:none}}
+
+/* ---------- Tarjeta del informe (PDF) ---------- */
+.ia-inf{background:linear-gradient(180deg,#fff 0%,#fffafa 100%)}
+.ia-inf-h{display:flex;align-items:center;gap:.65rem;padding:.75rem .8rem .6rem}
+.ia-inf-ic{display:grid;place-items:center;width:38px;height:44px;flex:none;border-radius:9px;color:#fff;
+  background:linear-gradient(135deg,#cf2430,#8f0d16);box-shadow:0 6px 14px -6px rgba(179,21,31,.55)}
+.ia-inf-ic svg{width:20px;height:20px}
+.ia-inf-h div{min-width:0}
+.ia-inf-h b{display:block;font-size:.86rem;line-height:1.3}
+.ia-inf-h small{display:block;margin-top:.1rem;font-size:.7rem;color:var(--color-fg-muted)}
+.ia-b .ia-inf-s{margin:0;padding:.1rem .8rem .5rem 2rem;font-size:.74rem;color:#4d4c48;counter-reset:none}
+.ia-b .ia-inf-s li{margin:.18rem 0;padding-left:.1rem}
+.ia-b .ia-inf-s li::marker{color:var(--ia-red);font-weight:600}
+.ia-inf-f{display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.55rem .8rem;border-top:1px solid var(--ia-line);
+  font-size:.68rem;color:var(--color-fg-muted)}
+.ia-inf-btn{display:inline-flex;align-items:center;gap:.35rem;flex:none;border:0;border-radius:999px;padding:.42rem .85rem;cursor:pointer;
+  font:inherit;font-size:.74rem;font-weight:600;color:#fff;background:linear-gradient(135deg,#c8202c,#9e1019);
+  box-shadow:0 4px 12px rgba(179,21,31,.3);transition:box-shadow .18s ease,transform .16s var(--ia-ease),opacity .18s ease}
+.ia-inf-btn svg{width:14px;height:14px;stroke-width:2.2}
+.ia-inf-btn:active{transform:scale(.96)}
+.ia-inf-btn.cargando{opacity:.6;cursor:progress}
+@media (hover:hover) and (pointer:fine){.ia-inf-btn:hover{box-shadow:0 6px 16px rgba(179,21,31,.42)}}

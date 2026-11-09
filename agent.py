@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import math
+from datetime import date
 import re
 import unicodedata
 
@@ -25,7 +26,7 @@ import pandas as pd
 import calc
 
 MODELO_POR_DEFECTO = "claude-sonnet-5-5"
-MAX_PASOS = 10
+MAX_PASOS = 16   # un informe necesita varias consultas
 MAX_FILAS_MODELO = 200
 MAX_FILAS_TABLA = 60
 MES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
@@ -461,6 +462,26 @@ HERRAMIENTAS = [
             "sql": {"type": "string", "description": "SELECT sobre las vistas vw_*: 2-3 filas, 1 columna de nombre + 2-6 numéricas"}},
             "required": ["titulo", "sql"]},
     },
+    {
+        "name": "generar_informe",
+        "description": "Junta en un informe descargable en PDF los gráficos, comparativas, KPIs, alertas y tablas que ya mostraste en ESTE turno. "
+                       "Cada herramienta visual te devuelve su número de bloque ('[Bloque #3]'): cítalo en la sección que sostiene. "
+                       "Los bloques que metes en el informe dejan de verse sueltos en el chat. Llámala una sola vez, al final.",
+        "input_schema": {"type": "object", "properties": {
+            "titulo": {"type": "string", "description": "Ej: 'Desempeño de proveedores · 3er trimestre 2026'"},
+            "subtitulo": {"type": "string", "description": "Periodo y alcance: 'Sell out ene–sep 2026 · ALFA y TORU'"},
+            "resumen": {"type": "array", "maxItems": 5, "items": {"type": "string"},
+                        "description": "Resumen ejecutivo: 3 a 5 conclusiones, cada una con su cifra clave"},
+            "secciones": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"type": "object", "properties": {
+                "titulo": {"type": "string"},
+                "texto": {"type": "string", "description": "Hallazgo y su porqué, en 2 a 4 viñetas ('- ...')"},
+                "bloques": {"type": "array", "maxItems": 3, "items": {"type": "integer"}, "description": "Números de bloque que la sostienen"}},
+                "required": ["titulo", "texto"]}},
+            "recomendaciones": {"type": "array", "maxItems": 6, "items": {"type": "string"},
+                                "description": "Acciones concretas, cada una con su efecto esperado"},
+            "nota": {"type": "string", "description": "Fuentes, periodo y limitaciones de los datos"}},
+            "required": ["titulo", "resumen", "secciones"]},
+    },
 ]
 
 FORMATOS_BLOQUE = {"money", "pct", "int", "dec1"}
@@ -528,6 +549,36 @@ def bloque_ficha(a: dict) -> dict:
     if dias is not None and dias >= 0:
         b["cobertura"] = {"dias": dias, "objetivo": _num(a.get("cobertura_objetivo")) or 30}
     return b
+
+
+MESES_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+
+
+def bloque_informe(a: dict, por_numero: dict) -> tuple[dict, list]:
+    """Arma el informe con los bloques citados. Devuelve (informe, bloques usados)."""
+    if not _txt(a.get("titulo")):
+        raise ValueError("falta el título del informe.")
+    usados, secciones = [], []
+    for sec in (a.get("secciones") or [])[:8]:
+        if not _txt(sec.get("titulo")):
+            continue
+        bl = []
+        for n in (sec.get("bloques") or [])[:3]:
+            b = por_numero.get(int(n)) if str(n).lstrip("-").isdigit() else None
+            if b is not None and b.get("type") not in ("acciones", "informe") and not any(b is u for u in usados):
+                bl.append(b)
+                usados.append(b)
+        secciones.append({"titulo": _txt(sec["titulo"], 90), "texto": _txt(sec.get("texto"), 1500), "bloques": bl})
+    if not secciones:
+        raise ValueError("el informe necesita al menos una sección con título.")
+    hoy = date.today()
+    inf = {"type": "informe", "titulo": _txt(a["titulo"], 110), "subtitulo": _txt(a.get("subtitulo"), 140),
+           "fecha": f"{hoy.day} de {MESES_ES[hoy.month - 1]} de {hoy.year}",
+           "resumen": [_txt(x, 300) for x in (a.get("resumen") or [])[:5] if _txt(x)],
+           "secciones": secciones,
+           "recomendaciones": [_txt(x, 300) for x in (a.get("recomendaciones") or [])[:6] if _txt(x)],
+           "nota": _txt(a.get("nota"), 500)}
+    return inf, usados
 
 
 def bloque_acciones(a: dict) -> dict:
@@ -706,6 +757,10 @@ Cómo trabajar:
 - Al consultar con query_business_database indica siempre mostrar_como. Si el dato es solo para ti, porque lo vas a enseñar con otra herramienta, usa 'ninguno'. Nunca muestres el mismo dato dos veces (gráfico y tabla).
 - En los gráficos, varias métricas solo si comparten escala (soles con soles); nunca mezcles soles con porcentajes en el mismo gráfico: haz dos o usa una comparativa.
 - Si una tendencia se entiende mejor en el dashboard, generate_dynamic_chart admite destino 'dashboard', pero úsalo solo si el usuario pide verlo ahí.
+- Informes en PDF: si el usuario pide un informe, reporte, análisis completo o algo para descargar o presentar:
+  1. Consulta de 4 a 8 ángulos que cubran el tema (evolución, ranking, comparativa, alertas…), mostrando cada uno como gráfico, comparativa, KPIs, alertas o tabla. No uses mostrar_como 'ninguno': el informe solo puede incluir bloques que mostraste. Puedes pedir varias herramientas a la vez en un mismo paso.
+  2. Llama UNA vez a generar_informe: resumen ejecutivo con 3 a 5 conclusiones y sus cifras, una sección por hallazgo (texto con el porqué y los números de bloque que la sostienen) y recomendaciones con su efecto esperado. En 'nota', di el periodo, las fuentes y lo que los datos no cubren.
+  3. En el chat responde solo con 1 o 2 líneas: que el informe está listo y su conclusión principal.
 - No amontones: como mucho dos bloques de datos por respuesta. Una pregunta simple se responde con texto.
 - Las cifras de cualquier bloque salen de otra herramienta en este mismo turno; si no las tienes, consúltalas antes.
 - Cuando haya siguientes pasos claros, ponlos con sugerir_acciones (1 a 3 botones) en vez de escribirlos. Cada pregunta del botón tiene que entenderse sola, con su periodo, proveedor o producto. En ese caso no cierres además con una propuesta en el texto.
@@ -783,6 +838,7 @@ class Sesion:
         self.bloques: list[dict] = []
         self.accion: dict = {}
         self.consultas: list[dict] = []
+        self.numerados: dict[int, dict] = {}     # número de bloque -> bloque, para citarlos en un informe
 
     def sql(self, q: str) -> pd.DataFrame:
         q = str(q or "").strip().rstrip(";")
@@ -805,6 +861,27 @@ class Sesion:
 
     # -- herramientas ------------------------------------------------------
     def ejecutar(self, nombre: str, a: dict) -> str:
+        """Ejecuta la herramienta y numera los bloques nuevos para poder citarlos en un informe."""
+        n0 = len(self.bloques)
+        out = self._ejecutar(nombre, a)
+        nuevos = [b for b in self.bloques[n0:] if b.get("type") not in ("acciones", "informe")]
+        if nuevos:
+            marcas = []
+            for b in nuevos:
+                n = len(self.numerados) + 1
+                self.numerados[n] = b
+                marcas.append(f"#{n}")
+            out = f"[Bloque {', '.join(marcas)}]\n" + str(out)
+        return out
+
+    def _ejecutar(self, nombre: str, a: dict) -> str:
+        if nombre == "generar_informe":
+            inf, usados = bloque_informe(a, self.numerados)
+            self.bloques = [b for b in self.bloques if not any(b is u for u in usados)] + [inf]
+            sin_citar = len(self.numerados) - len(usados)
+            return (f"Informe listo: {len(inf['secciones'])} secciones y {len(usados)} bloques dentro" +
+                    (f" ({sin_citar} bloques sin citar siguen sueltos en el chat)" if sin_citar else "") +
+                    ". En el chat escribe solo 1 o 2 líneas: que el informe está listo para descargar en PDF y su conclusión principal.")
         if nombre == "query_business_database":
             r = query_business_database(self.V, self.R["meses"], a.get("dimension", ""), a.get("metric", ""), a.get("date_range"),
                                         a.get("filtros"), a.get("top_n", 15), a.get("orden", "desc"))
