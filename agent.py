@@ -758,7 +758,8 @@ Quién eres (esto vale para CUALQUIER mensaje, sea un saludo, una broma, una que
   · a "¿cómo van las ventas?" algo como "Buenas noticias: …" con la conclusión y su cifra, y debajo unas viñetas con el porqué.
 
 Cómo se arma tu respuesta:
-- Todo lo que escribes en un turno le llega al usuario, junto y en orden, aunque uses herramientas en medio. Escribe tu respuesta una sola vez: no anuncies lo que vas a hacer ("voy a consultar…", "déjame revisar…") y no añadas un remate después de usar una herramienta ("¡Listo!", "Ahí lo tienes").
+- SIEMPRE escribes una respuesta en texto. Es obligatoria en cada turno, aunque ya hayas mostrado gráficos, movido el dashboard o puesto botones: sin tu texto, el usuario no sabe qué significa lo que ve.
+- Orden: primero usas las herramientas que necesites, sin narrar ("voy a consultar…", "déjame revisar…"); al terminar escribes tu respuesta completa, con la conclusión y lo que explica el gráfico. Todo lo que escribes en el turno le llega al usuario junto y en orden, así que escríbela una sola vez y sin remates vacíos como "¡Listo!" o "Ahí lo tienes".
 
 Cómo trabajar:
 - Nunca inventes cifras: sácalas con las herramientas.
@@ -941,10 +942,10 @@ class Sesion:
             df = self.sql(a.get("sql"))
             self.consultas.append({"herramienta": nombre, "detalle": a.get("sql")})
             self.bloques.append(bloque_comparativa(df, a.get("titulo", "")))
-            return "Comparativa mostrada al usuario. No repitas sus cifras en tu texto.\n" + df_texto(df)
+            return "Comparativa mostrada al usuario. En tu respuesta comenta lo importante sin recitar todas sus cifras.\n" + df_texto(df)
         if nombre in BLOQUES_SIMPLES:
             self.bloques.append(BLOQUES_SIMPLES[nombre](a))
-            return "Mostrado al usuario en el chat. No repitas en tu texto lo que ya enseña."
+            return "Mostrado al usuario en el chat. En tu respuesta comenta lo importante sin repetirlo entero."
         if nombre == "controlar_dashboard":
             return self._controlar(a)
         if nombre == "simular_descuento":
@@ -1050,6 +1051,20 @@ def sin_razonamiento(msgs: list) -> list:
     return out
 
 
+PEDIR_TEXTO = ("[Nota del sistema, el usuario no la ve: terminaste sin escribir tu respuesta. Escríbela ahora en texto, "
+               "como Paula: la conclusión y lo que significa lo que mostraste, en tu estilo de siempre. No uses más herramientas.]")
+
+
+def texto_de_respaldo(sesion: Sesion) -> str:
+    """Último recurso si aun así no hay texto: nunca se muestra '(sin respuesta)'."""
+    titulos = [b.get("titulo") for b in sesion.bloques if b.get("titulo")]
+    if titulos:
+        return f"Te dejé abajo {('«' + titulos[0] + '»') if len(titulos) == 1 else 'lo que encontré'}. Si quieres, te explico qué significa o lo vemos más a fondo."
+    if sesion.accion.get("descripcion"):
+        return "Te dejé el dashboard en la vista que corresponde. ¿Quieres que te explique lo que se ve ahí?"
+    return "Perdona, se me cruzaron los cables con esa. ¿Me la repites con otras palabras?"
+
+
 def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: dict | None) -> tuple[dict, list]:
     """Corre el ciclo de herramientas. Devuelve ({texto, bloques, accion, consultas}, historial)."""
     sesion.reiniciar_turno()
@@ -1064,7 +1079,7 @@ def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: d
             {"type": "text", "text": "[Estado actual del dashboard que ve el usuario]\n" + describir_contexto(contexto, sesion.R)},
         ]}
     textos: list[str] = []
-    recuperado = False
+    recuperado = pedido_texto = False
     for _ in range(MAX_PASOS):
         try:
             resp = cliente.messages.create(model=modelo, max_tokens=16000, system=sistema, tools=HERRAMIENTAS, messages=msgs)
@@ -1083,6 +1098,12 @@ def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: d
             textos.append(parte)
         usos = [b for b in resp.content if b.type == "tool_use"]
         if resp.stop_reason != "tool_use" or not usos:
+            # Terminó sin escribir nada (solo herramientas): se le pide su respuesta una vez.
+            # Se añade al final del historial, sin tocar lo anterior.
+            if not textos and not pedido_texto and resp.stop_reason == "end_turn":
+                pedido_texto = True
+                msgs.append({"role": "user", "content": [{"type": "text", "text": PEDIR_TEXTO}]})
+                continue
             break
         res = []
         for u in usos:
@@ -1094,8 +1115,8 @@ def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: d
         msgs.append({"role": "user", "content": res})
     else:
         textos = textos or ["Necesité demasiados pasos. Prueba con una pregunta más específica."]
-    texto = "\n\n".join(textos)
-    return {"texto": texto or "(sin respuesta)", "bloques": ordenar_bloques(sesion.bloques), "accion": sesion.accion,
+    texto = "\n\n".join(textos) or texto_de_respaldo(sesion)
+    return {"texto": texto, "bloques": ordenar_bloques(sesion.bloques), "accion": sesion.accion,
             "consultas": sesion.consultas}, msgs
 
 

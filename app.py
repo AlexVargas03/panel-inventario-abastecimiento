@@ -129,13 +129,14 @@ if ss.get("sesion_version") != version:
 
 
 def _es_pregunta(m: dict) -> bool:
-    """Turno real del usuario (no los mensajes que solo llevan resultados de herramientas)."""
+    """Turno real del usuario (no los resultados de herramientas ni las notas internas del sistema)."""
     c = m.get("content")
     if m.get("role") != "user":
         return False
     if isinstance(c, str):
         return True
-    return bool(c) and isinstance(c[0], dict) and c[0].get("type") == "text"
+    return (bool(c) and isinstance(c[0], dict) and c[0].get("type") == "text"
+            and not str(c[0].get("text", "")).startswith("[Nota del sistema"))
 
 
 def compactar(hist: list, max_turnos: int = 12) -> list:
