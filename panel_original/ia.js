@@ -51,12 +51,12 @@
   var panel = $('#ia-panel');
   panel.innerHTML =
     '<div class="ia-hd"><span class="ia-cabeza" id="ia-cab" aria-hidden="true"><i></i><i></i></span>' +
-    '<div class="ia-tt"><b>Asistente</b><small><span class="ia-dot" id="ia-estado"></span><span id="ia-sub">En línea</span></small></div>' +
+    '<div class="ia-tt"><b>Paula</b><small><span class="ia-dot" id="ia-estado"></span><span id="ia-sub">En línea</span></small></div>' +
     '<button class="ia-ico" id="ia-new" type="button" title="Nueva conversación" aria-label="Nueva conversación">' + IC.nuevo + '</button></div>' +
     '<p class="ia-warn" id="ia-warn" hidden></p>' +
     '<div id="ia-msgs" aria-live="polite"></div>' +
     '<div class="ia-ft"><div class="ia-quick" id="ia-quick"></div>' +
-    '<div class="ia-in"><textarea id="ia-txt" rows="1" placeholder="Pregunta por ventas, inventario, almacenes…" aria-label="Pregunta al asistente"></textarea>' +
+    '<div class="ia-in"><textarea id="ia-txt" rows="1" placeholder="Escríbele a Paula…" aria-label="Escríbele a Paula"></textarea>' +
     '<div class="ia-bar"><span class="ia-ctx" title="Filtros activos del dashboard">' + IC.filtro + '<span id="ia-ctx"></span></span>' +
     '<span class="ia-kbd" aria-hidden="true"><kbd>Enter</kbd> enviar · <kbd>Shift</kbd>+<kbd>Enter</kbd> línea</span>' +
     '<button class="ia-send" id="ia-send" type="button" title="Enviar" aria-label="Enviar">' + IC.enviar + '</button></div></div>' +
@@ -864,8 +864,8 @@
     var wrap = document.createElement('div'); wrap.className = 'ia-bienv';   // ocupa todo el alto y centra el saludo
 
     var hero = document.createElement('div'); hero.className = 'ia-hero';
-    hero.innerHTML = '<span class="ia-cabeza ia-grande" id="ia-hcab" aria-hidden="true"><i></i><i></i></span><h3>Hola, soy tu asistente</h3>' +
-      '<p>¿Qué quieres saber del panel?</p>';
+    hero.innerHTML = '<span class="ia-cabeza ia-grande" id="ia-hcab" aria-hidden="true"><i></i><i></i></span><h3>Hola, soy Paula</h3>' +
+      '<p>Te ayudo a entender el panel. ¿En qué te echo una mano?</p>';
     wrap.appendChild(hero);
 
     var grid = document.createElement('div'); grid.className = 'ia-ideas';
@@ -924,7 +924,7 @@
     if (!st.chat.length) msgs.appendChild(bienvenida());   // desaparece con la primera pregunta
     st.chat.forEach(function (m) { colgar(m); });
     if (st.busy) {
-      var t = burbuja('assistant'); t.m.classList.add('ia-typing'); t.b.setAttribute('aria-label', 'El asistente está escribiendo'); t.b.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>'; msgs.appendChild(t.m);
+      var t = burbuja('assistant'); t.m.classList.add('ia-typing'); t.b.setAttribute('aria-label', 'Paula está escribiendo'); t.b.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>'; msgs.appendChild(t.m);
     }
     if (st.error) { var e = burbuja('assistant'); e.b.style.borderColor = '#e8b4b4'; e.b.textContent = st.error; msgs.appendChild(e.m); }
     btn.disabled = st.busy; txt.disabled = st.busy;
