@@ -1,0 +1,43 @@
+# Despierta el dashboard cada mañana para que los datos de SharePoint ya estén descargados
+# cuando entre el primer usuario. 11:05 UTC = 6:05 a. m. en Lima (Perú no cambia de horario).
+# GitHub puede retrasar las tareas programadas algunos minutos en horas de mucha carga.
+name: Despertar el dashboard
+
+on:
+  schedule:
+    - cron: "5 11 * * *"
+  workflow_dispatch:        # botón "Run workflow" para lanzarlo a mano
+
+permissions:
+  contents: read
+
+jobs:
+  despertar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar el navegador automático
+        run: |
+          pip install playwright==1.64.1
+          python -m playwright install --with-deps chromium
+
+      - name: Abrir el dashboard
+        env:
+          APP_URL: ${{ vars.APP_URL }}               # opcional: si no se define, usa la URL por defecto del script
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}  # opcional: solo si la app pide contraseña
+        run: python scripts/despertar_app.py
+
+      - name: Guardar la captura si falló
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: captura-del-fallo
+          path: despertar_fallo.png
+          if-no-files-found: ignore
+          retention-days: 7
