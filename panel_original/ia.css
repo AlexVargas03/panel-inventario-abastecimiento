@@ -1,6 +1,7 @@
 /* Panel del Asistente IA al lado del dashboard (acento rojo de ALFA sobre superficie clara) */
 :root{
   --ia-w:clamp(380px,31vw,560px);--ia-red:#b3151f;--ia-red2:#c8202c;--ia-soft:#fbeff0;
+  --ia-rgb:179,21,31;--ia-claro:#cf2430;--ia-oscuro:#8f0d16;--ia-cara1:#ffe3e4;--ia-cara2:#ffc9cb;--ia-brillo:#fff1f2;--ia-brillo-rgb:255,241,242;
   --ia-line:rgba(11,11,11,.09);--ia-bg:#fcfcfb;--ia-sheet:62vh;
   /* ease-out fuerte para entradas; curva de drawer (iOS) para panel y botón */
   --ia-ease:cubic-bezier(.23,1,.32,1);--ia-drawer:cubic-bezier(.32,.72,0,1);
@@ -21,8 +22,8 @@ body.ia-closed #ia-panel{margin-right:calc(-1 * var(--ia-w));opacity:.4;transiti
 /* Se desplaza con transform, nunca con right/bottom: así no provoca layout por frame */
 #ia-handle{position:absolute;right:1.25rem;bottom:1.25rem;z-index:30;width:54px;height:54px;padding:0;
   border:0;border-radius:50%;cursor:pointer;color:#fff;
-  background:radial-gradient(120% 120% at 30% 20%,#ffffff 0%,#ffe3e4 55%,#ffc9cb 100%);
-  box-shadow:0 10px 26px rgba(179,21,31,.3),0 2px 6px rgba(0,0,0,.14);
+  background:radial-gradient(120% 120% at 30% 20%,#ffffff 0%,var(--ia-cara1) 55%,var(--ia-cara2) 100%);
+  box-shadow:0 10px 26px rgba(var(--ia-rgb),.3),0 2px 6px rgba(0,0,0,.14);
   transform:translateX(calc(-1 * var(--ia-w)));scale:1;
   transition:transform var(--ia-dur) var(--ia-drawer),scale .16s var(--ia-ease),box-shadow .2s ease;
   animation:ia-fab-in .4s var(--ia-ease) .1s both}
@@ -55,7 +56,7 @@ body.ia-closed #ia-handle::before{animation:ia-fab-halo 3.4s ease-out infinite}
 /* La misma cabeza, ya posada en la cabecera: cierra el asistente */
 .ia-cabeza{position:relative;width:30px;height:30px;flex:none;border:0;padding:0;cursor:default;border-radius:50%;
   display:flex;align-items:center;justify-content:center;gap:6px;
-  background:radial-gradient(120% 120% at 30% 20%,#ffffff 0%,#ffe3e4 55%,#ffc9cb 100%);
+  background:radial-gradient(120% 120% at 30% 20%,#ffffff 0%,var(--ia-cara1) 55%,var(--ia-cara2) 100%);
   box-shadow:0 2px 8px rgba(0,0,0,.18);transition:transform .16s var(--ia-ease)}
 
 body.ia-volando .ia-cabeza,body.ia-volando #ia-handle{visibility:hidden}
@@ -64,8 +65,8 @@ body:not(.ia-closed) #ia-handle{visibility:hidden;pointer-events:none}
 
 /* La copia que viaja entre el boton y la cabecera */
 .ia-vuela{position:fixed;z-index:60;border-radius:50%;display:flex;align-items:center;justify-content:center;gap:6px;
-  background:radial-gradient(120% 120% at 30% 20%,#ffffff 0%,#ffe3e4 55%,#ffc9cb 100%);
-  box-shadow:0 10px 26px rgba(179,21,31,.3);transform-origin:top left;pointer-events:none;
+  background:radial-gradient(120% 120% at 30% 20%,#ffffff 0%,var(--ia-cara1) 55%,var(--ia-cara2) 100%);
+  box-shadow:0 10px 26px rgba(var(--ia-rgb),.3);transform-origin:top left;pointer-events:none;
   transition:transform .46s var(--ia-drawer)}
 
 /* ---------- Cabecera: un solo color plano, sin logo ni distintivos ---------- */
@@ -95,7 +96,7 @@ body:not(.ia-closed) #ia-handle{visibility:hidden;pointer-events:none}
 /* La burbuja se ajusta a su contenido; las tablas y gráficos crecen hasta el ancho del panel */
 .ia-m.assistant{width:100%}
 .ia-m.assistant .ia-b:has(.ia-blk){width:100%}
-.ia-m.user .ia-b{background:linear-gradient(135deg,#b3151f,#c8202c);color:#fff;border-color:transparent;max-width:85%;
+.ia-m.user .ia-b{background:linear-gradient(135deg,var(--ia-red),var(--ia-red2));color:#fff;border-color:transparent;max-width:85%;
   border-bottom-right-radius:5px}
 .ia-m.assistant .ia-b{border-bottom-left-radius:5px}
 .ia-b h4{margin:0 0 .35rem;color:var(--ia-red);font-size:.82rem}
@@ -136,8 +137,8 @@ body:not(.ia-closed) #ia-handle{visibility:hidden;pointer-events:none}
 .ia-hero{text-align:center;padding:1.1rem .2rem .2rem;animation:ia-in .3s var(--ia-ease) both}
 /* Emblema con halo suave: da peso a la bienvenida sin añadir texto */
 .ia-emb{position:relative;width:52px;height:52px;margin:0 auto .7rem;border-radius:17px;display:grid;place-items:center;
-  color:#fff;background:radial-gradient(120% 120% at 30% 20%,#d4242f 0%,#b3151f 60%,#8f0f18 100%);
-  box-shadow:0 10px 26px rgba(179,21,31,.28),0 0 0 10px rgba(179,21,31,.07)}
+  color:#fff;background:radial-gradient(120% 120% at 30% 20%,var(--ia-claro) 0%,var(--ia-red) 60%,#8f0f18 100%);
+  box-shadow:0 10px 26px rgba(var(--ia-rgb),.28),0 0 0 10px rgba(var(--ia-rgb),.07)}
 .ia-emb svg{width:25px;height:25px}
 .ia-hero h3{margin:0;font-size:1.32rem;font-weight:650;letter-spacing:-.5px}
 .ia-hero p{margin:.3rem 0 0;font-size:.85rem;color:var(--color-fg-muted)}
@@ -148,7 +149,7 @@ body:not(.ia-closed) #ia-handle{visibility:hidden;pointer-events:none}
   animation:ia-in .3s var(--ia-ease) both}
 .ia-idea:nth-child(1){animation-delay:.04s}.ia-idea:nth-child(2){animation-delay:.09s}
 .ia-idea:nth-child(3){animation-delay:.14s}.ia-idea:nth-child(4){animation-delay:.19s}
-.ia-idea:hover{border-color:var(--ia-red);box-shadow:0 4px 14px rgba(179,21,31,.12)}
+.ia-idea:hover{border-color:var(--ia-red);box-shadow:0 4px 14px rgba(var(--ia-rgb),.12)}
 .ia-idea b{font-size:.78rem;font-weight:600;display:flex;align-items:center;gap:.4rem}
 .ia-idea b svg{width:15px;height:15px;flex:none;color:var(--ia-red)}
 .ia-idea small{font-size:.68rem;color:var(--color-fg-muted);line-height:1.3}
@@ -164,7 +165,7 @@ body:not(.ia-closed) #ia-handle{visibility:hidden;pointer-events:none}
   transition:border-color .18s ease,background .18s ease,transform .16s var(--ia-ease)}
 .ia-ins li:hover{background:var(--ia-soft);border-color:var(--ia-red)}
 .ia-ins i{width:7px;height:7px;border-radius:50%;margin-top:.4rem;flex:none;background:#2a78d6}
-.ia-ins li.alerta i{background:#c8202c}.ia-ins li.ok i{background:#1baf7a}
+.ia-ins li.alerta i{background:var(--ia-red2)}.ia-ins li.ok i{background:#1baf7a}
 .ia-ins li.ia-load{color:var(--color-fg-muted);cursor:default;justify-content:center}
 .ia-ins li.ia-load:hover{background:#fff;border-color:var(--ia-line)}
 .ia-src{font-size:.66rem;color:var(--color-fg-muted);margin-top:.4rem;text-align:center}
@@ -187,7 +188,7 @@ body:not(.ia-closed) #ia-handle{visibility:hidden;pointer-events:none}
 /* Cabecera siempre con fondo propio: se lee aunque la tabla se desplace bajo ella */
 .ia-t th{position:sticky;top:0;z-index:1;background:var(--ia-soft);text-align:left;font-size:.62rem;font-weight:700;
   text-transform:uppercase;letter-spacing:.4px;color:var(--ia-red);padding:.42rem .45rem .38rem;
-  border-bottom:1px solid rgba(179,21,31,.22);white-space:nowrap}
+  border-bottom:1px solid rgba(var(--ia-rgb),.22);white-space:nowrap}
 .ia-t td{padding:.36rem .45rem;border-bottom:1px solid rgba(11,11,11,.05);white-space:nowrap;max-width:none;overflow:hidden;text-overflow:ellipsis}
 /* La columna de nombre cede ancho a las cifras: se trunca con puntos suspensivos */
 .ia-t td.k{max-width:145px}
@@ -200,7 +201,7 @@ body:not(.ia-closed) #ia-handle{visibility:hidden;pointer-events:none}
 .ia-t td.bar::before{content:"";position:absolute;left:.25rem;top:4px;bottom:4px;width:calc(var(--p) * .82);
   border-radius:3px;background:rgba(42,120,214,.15)}
 .ia-t td.bar>span{position:relative}
-.ia-t td.bar.neg::before{background:rgba(200,32,44,.15)}
+.ia-t td.bar.neg::before{background:rgba(var(--ia-rgb),.15)}
 .ia-t tbody tr:hover td{background:#fafaf8}
 .ia-t tbody tr:hover td.bar::before{background:rgba(42,120,214,.26)}
 /* Valores directos sobre las marcas: tinta, nunca el color de la serie */
@@ -239,9 +240,9 @@ body:not(.ia-closed) #ia-handle{visibility:hidden;pointer-events:none}
 .ia-quick:empty{display:none}
 .ia-in{display:flex;gap:.4rem;align-items:flex-end;border:1.5px solid var(--ia-line);border-radius:14px;
   padding:.35rem .35rem .35rem .7rem;background:#f7f7f5;transition:border-color .2s ease,background .2s ease,box-shadow .2s ease}
-.ia-in:focus-within{border-color:var(--ia-red);background:#fff;box-shadow:0 0 0 3px rgba(179,21,31,.1)}
+.ia-in:focus-within{border-color:var(--ia-red);background:#fff;box-shadow:0 0 0 3px rgba(var(--ia-rgb),.1)}
 .ia-in textarea{flex:1;border:0;background:none;resize:none;outline:none;font-size:.85rem;max-height:120px;min-height:22px;padding:.25rem 0;font-family:inherit}
-.ia-send{width:34px;height:34px;border:0;border-radius:10px;background:linear-gradient(135deg,#b3151f,#c8202c);color:#fff;
+.ia-send{width:34px;height:34px;border:0;border-radius:10px;background:linear-gradient(135deg,var(--ia-red),var(--ia-red2));color:#fff;
   cursor:pointer;font-size:15px;flex:none;transition:transform .16s var(--ia-ease),opacity .18s ease}
 .ia-send:disabled{opacity:.35;cursor:default}
 .ia-meta{display:flex;justify-content:space-between;font-size:.64rem;color:var(--color-fg-muted);margin-top:.35rem}
@@ -253,7 +254,7 @@ body:not(.ia-closed) #ia-handle{visibility:hidden;pointer-events:none}
   .ia-idea:hover{transform:translateY(-2px)}
   .ia-ins li:hover{transform:translateX(2px)}
   .ia-send:hover:not(:disabled){transform:translateY(-1px) scale(1.04)}
-  #ia-handle:hover{scale:1.06;box-shadow:0 14px 32px rgba(179,21,31,.45),0 2px 8px rgba(0,0,0,.18)}
+  #ia-handle:hover{scale:1.06;box-shadow:0 14px 32px rgba(var(--ia-rgb),.45),0 2px 8px rgba(0,0,0,.18)}
 }
 /* Todo lo presionable se hunde al pulsar: confirma que la interfaz escuchó */
 .ia-idea:active,.ia-chip:active,.ia-ins li:active,.ia-ico:active,.ia-send:active:not(:disabled){transform:scale(.97)}
@@ -372,13 +373,13 @@ body.ia-closed .ia-lat,body.ia-volando .ia-lat{opacity:0;pointer-events:none}
 .ia-cob.alto .ia-cob-b i{background:var(--ia-warn)}.ia-cob.alto span{color:var(--ia-warn);background:var(--ia-warn-bg)}
 
 .ia-sig{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.7rem}
-.ia-sig .ia-chip{display:inline-flex;align-items:center;gap:.3rem;max-width:100%;border:1px solid rgba(179,21,31,.22);background:#fff;
+.ia-sig .ia-chip{display:inline-flex;align-items:center;gap:.3rem;max-width:100%;border:1px solid rgba(var(--ia-rgb),.22);background:#fff;
   color:var(--ia-red);border-radius:999px;padding:.32rem .55rem .32rem .7rem;font:inherit;font-size:.74rem;font-weight:500;cursor:pointer;
   transition:background-color .15s ease,border-color .15s ease,transform .16s var(--ia-ease)}
 .ia-sig .ia-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ia-sig .ia-chip svg{width:13px;height:13px;flex:none;transition:transform .16s var(--ia-ease)}
 @media (hover:hover) and (pointer:fine){
-  .ia-sig .ia-chip:hover{background:var(--ia-soft);border-color:rgba(179,21,31,.4)}
+  .ia-sig .ia-chip:hover{background:var(--ia-soft);border-color:rgba(var(--ia-rgb),.4)}
   .ia-sig .ia-chip:hover svg{transform:translateX(2px)}
 }
 .ia-sig .ia-chip:active{transform:scale(.97)}
@@ -389,7 +390,7 @@ body.ia-closed .ia-lat,body.ia-volando .ia-lat{opacity:0;pointer-events:none}
 
 /* ---------- Cabeza en la bienvenida ---------- */
 .ia-cabeza.ia-grande{width:60px;height:60px;gap:12px;margin:0 auto .75rem;
-  box-shadow:0 10px 26px rgba(179,21,31,.22),0 0 0 10px rgba(179,21,31,.06)}
+  box-shadow:0 10px 26px rgba(var(--ia-rgb),.22),0 0 0 10px rgba(var(--ia-rgb),.06)}
 .ia-grande i{width:9px;height:9px}
 .ia-grande i::after{top:1.5px;right:1.5px;width:3px;height:3px}
 /* Mientras está la bienvenida, la cabeza vive abajo y la de la cabecera no se ve */
@@ -403,7 +404,7 @@ body.ia-closed .ia-lat,body.ia-volando .ia-lat{opacity:0;pointer-events:none}
 .ia-cara,.ia-cabeza{transition:rotate .3s var(--ia-ease),transform .16s var(--ia-ease)}
 
 body.ia-parpadea :is(.ia-cara,.ia-cabeza) i,
-body.ia-guino :is(.ia-cara,.ia-cabeza) i:last-child{scale:1 .1}
+body.ia-guino :is(.ia-cara,.ia-cabeza) i:last-of-type{scale:1 .1}
 
 body[data-gesto="izq"]{--gx:-1.3px;--gy:0px}
 body[data-gesto="der"]{--gx:1.3px;--gy:0px}
@@ -458,12 +459,12 @@ body[data-gesto="pensando"] .ia-cabeza i{animation:ia-piensa 1.8s ease-in-out in
 /* ---------- Bienvenida a pantalla completa ---------- */
 /* Ocupa todo el alto del chat y centra el saludo; con el primer mensaje desaparece */
 .ia-bienv{flex:1 0 auto;display:flex;flex-direction:column;justify-content:center;padding:0 .3rem 6vh}
-.ia-saludo #ia-msgs{background:radial-gradient(90% 55% at 50% 36%,#fff1f2 0%,rgba(255,241,242,0) 70%),var(--ia-bg)}
+.ia-saludo #ia-msgs{background:radial-gradient(90% 55% at 50% 36%,var(--ia-brillo) 0%,rgba(var(--ia-brillo-rgb),0) 70%),var(--ia-bg)}
 .ia-bienv .ia-hero{padding:0 .2rem}
 .ia-bienv .ia-hero h3{font-size:1.6rem;letter-spacing:-.6px}
 .ia-bienv .ia-hero p{font-size:.92rem;margin-top:.4rem}
 .ia-cabeza.ia-grande{width:78px;height:78px;gap:15px;margin:0 auto 1.1rem;
-  box-shadow:0 14px 34px rgba(179,21,31,.24),0 0 0 12px rgba(179,21,31,.06),0 0 0 26px rgba(179,21,31,.03)}
+  box-shadow:0 14px 34px rgba(var(--ia-rgb),.24),0 0 0 12px rgba(var(--ia-rgb),.06),0 0 0 26px rgba(var(--ia-rgb),.03)}
 .ia-grande i{width:11px;height:11px}
 .ia-grande i::after{top:2px;right:2px;width:3.6px;height:3.6px}
 .ia-grande{--k:2.1}
@@ -480,8 +481,8 @@ body[data-gesto="pensando"] .ia-cabeza i{animation:ia-piensa 1.8s ease-in-out in
   border:1px solid rgba(11,11,11,.08);border-radius:20px;background:#fff;
   box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px -10px rgba(60,10,14,.18);
   transition:border-color .2s ease,box-shadow .2s ease}
-.ia-in:focus-within{border-color:rgba(179,21,31,.35);background:#fff;
-  box-shadow:0 0 0 4px rgba(179,21,31,.08),0 10px 28px -10px rgba(179,21,31,.28)}
+.ia-in:focus-within{border-color:rgba(var(--ia-rgb),.35);background:#fff;
+  box-shadow:0 0 0 4px rgba(var(--ia-rgb),.08),0 10px 28px -10px rgba(var(--ia-rgb),.28)}
 .ia-in textarea{width:100%;padding:.1rem .4rem 0 0;font-size:.88rem;line-height:1.45;min-height:24px;max-height:140px;color:var(--color-fg)}
 .ia-in textarea::placeholder{color:#a3a19b}
 .ia-bar{display:flex;align-items:center;gap:.5rem;min-height:34px}
@@ -499,12 +500,12 @@ body[data-gesto="pensando"] .ia-cabeza i{animation:ia-piensa 1.8s ease-in-out in
   transition:background-color .18s ease,color .18s ease,box-shadow .18s ease,transform .16s var(--ia-ease)}
 .ia-kbd+.ia-send{margin-left:0}
 .ia-send svg{width:16px;height:16px;stroke-width:2.2;transition:translate .2s var(--ia-ease)}
-.ia-in.lleno .ia-send:not(:disabled){background:linear-gradient(135deg,#c8202c,#9e1019);color:#fff;cursor:pointer;
-  box-shadow:0 4px 12px rgba(179,21,31,.35)}
+.ia-in.lleno .ia-send:not(:disabled){background:linear-gradient(135deg,var(--ia-red2),var(--ia-oscuro));color:#fff;cursor:pointer;
+  box-shadow:0 4px 12px rgba(var(--ia-rgb),.35)}
 .ia-send:disabled{opacity:1}
 .ia-in.lleno .ia-send:not(:disabled):active{transform:scale(.94)}
 @media (hover:hover) and (pointer:fine){
-  .ia-in.lleno .ia-send:not(:disabled):hover{box-shadow:0 6px 16px rgba(179,21,31,.45)}
+  .ia-in.lleno .ia-send:not(:disabled):hover{box-shadow:0 6px 16px rgba(var(--ia-rgb),.45)}
   .ia-in.lleno .ia-send:not(:disabled):hover svg{translate:0 -1.5px}
   .ia-send:hover:not(:disabled){transform:none}
 }
@@ -527,7 +528,7 @@ body[data-gesto="pensando"] .ia-cabeza i{animation:ia-piensa 1.8s ease-in-out in
 .ia-hd{overflow:hidden;isolation:isolate;padding:.85rem .85rem .85rem 1rem;gap:.7rem;
   background:
     radial-gradient(120% 140% at 0% 0%,rgba(255,255,255,.2) 0%,rgba(255,255,255,0) 45%),
-    linear-gradient(135deg,#cf2430 0%,#b3151f 55%,#8f0d16 100%)}
+    linear-gradient(135deg,var(--ia-claro) 0%,var(--ia-red) 55%,var(--ia-oscuro) 100%)}
 .ia-hd::before{content:"";position:absolute;z-index:-1;right:-46px;top:-60px;width:190px;height:190px;border-radius:50%;
   background:radial-gradient(circle,transparent 38%,rgba(255,255,255,.07) 39%,rgba(255,255,255,.07) 52%,transparent 53%,
     transparent 64%,rgba(255,255,255,.05) 65%,rgba(255,255,255,.05) 76%,transparent 77%)}
@@ -589,7 +590,7 @@ body.ia-volando .ia-saludo #ia-cab{visibility:visible}
 .ia-inf{background:linear-gradient(180deg,#fff 0%,#fffafa 100%)}
 .ia-inf-h{display:flex;align-items:center;gap:.65rem;padding:.75rem .8rem .6rem}
 .ia-inf-ic{display:grid;place-items:center;width:38px;height:44px;flex:none;border-radius:9px;color:#fff;
-  background:linear-gradient(135deg,#cf2430,#8f0d16);box-shadow:0 6px 14px -6px rgba(179,21,31,.55)}
+  background:linear-gradient(135deg,var(--ia-claro),var(--ia-oscuro));box-shadow:0 6px 14px -6px rgba(var(--ia-rgb),.55)}
 .ia-inf-ic svg{width:20px;height:20px}
 .ia-inf-h div{min-width:0}
 .ia-inf-h b{display:block;font-size:.86rem;line-height:1.3}
@@ -600,12 +601,12 @@ body.ia-volando .ia-saludo #ia-cab{visibility:visible}
 .ia-inf-f{display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.55rem .8rem;border-top:1px solid var(--ia-line);
   font-size:.68rem;color:var(--color-fg-muted)}
 .ia-inf-btn{display:inline-flex;align-items:center;gap:.35rem;flex:none;border:0;border-radius:999px;padding:.42rem .85rem;cursor:pointer;
-  font:inherit;font-size:.74rem;font-weight:600;color:#fff;background:linear-gradient(135deg,#c8202c,#9e1019);
-  box-shadow:0 4px 12px rgba(179,21,31,.3);transition:box-shadow .18s ease,transform .16s var(--ia-ease),opacity .18s ease}
+  font:inherit;font-size:.74rem;font-weight:600;color:#fff;background:linear-gradient(135deg,var(--ia-red2),var(--ia-oscuro));
+  box-shadow:0 4px 12px rgba(var(--ia-rgb),.3);transition:box-shadow .18s ease,transform .16s var(--ia-ease),opacity .18s ease}
 .ia-inf-btn svg{width:14px;height:14px;stroke-width:2.2}
 .ia-inf-btn:active{transform:scale(.96)}
 .ia-inf-btn.cargando{opacity:.6;cursor:progress}
-@media (hover:hover) and (pointer:fine){.ia-inf-btn:hover{box-shadow:0 6px 16px rgba(179,21,31,.42)}}
+@media (hover:hover) and (pointer:fine){.ia-inf-btn:hover{box-shadow:0 6px 16px rgba(var(--ia-rgb),.42)}}
 
 /* ---------- Imágenes adjuntas ---------- */
 .ia-adjs{display:flex;flex-wrap:wrap;gap:.4rem;margin:0 0 .45rem}
@@ -622,8 +623,50 @@ body.ia-volando .ia-saludo #ia-cab{visibility:visible}
 .ia-clip:active{transform:scale(.92)}
 @media (hover:hover) and (pointer:fine){
   .ia-clip:hover{background:#f1f0ee;color:var(--ia-red)}
-  .ia-adj button:hover{background:rgba(179,21,31,.9)}
+  .ia-adj button:hover{background:rgba(var(--ia-rgb),.9)}
 }
-.ia-in.arrastrando{border-color:var(--ia-red);background:var(--ia-soft);box-shadow:0 0 0 4px rgba(179,21,31,.1)}
+.ia-in.arrastrando{border-color:var(--ia-red);background:var(--ia-soft);box-shadow:0 0 0 4px rgba(var(--ia-rgb),.1)}
 .ia-uimgs{display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.4rem}
 .ia-uimgs img{display:block;max-width:170px;max-height:130px;border-radius:10px;background:#fff;box-shadow:0 0 0 1px rgba(255,255,255,.4)}
+
+/* ---------- Marca: ALFA (rojo, por defecto) o TORU (negro) ----------
+   Se cambia tocando la cabeza de Paula. Solo cambia el panel de Paula: el dashboard sigue con sus colores. */
+body.ia-toru{--ia-red:#1c1c1e;--ia-red2:#3a3a3d;--ia-soft:#f1f1f2;--ia-rgb:28,28,30;--ia-claro:#3d3d41;--ia-oscuro:#0b0b0c;
+  --ia-cara1:#f0f0f2;--ia-cara2:#d6d6db;--ia-brillo:#eeeef1;--ia-brillo-rgb:238,238,241}
+
+  cursor:pointer;color:#7a7873;background:transparent;transition:background-color .2s ease,color .2s ease,box-shadow .2s ease,transform .16s var(--ia-ease)}
+  color:#fff;background:rgba(255,255,255,.14);box-shadow:inset 0 0 0 1px rgba(255,255,255,.22);display:inline-flex;align-items:center;gap:.3rem;
+  transition:background-color .18s ease,transform .16s var(--ia-ease)}
+
+/* ---------- Más gestos ---------- */
+/* Cachetes: aparecen cuando está tierna o muy contenta */
+.ia-mej{position:absolute;top:60%;width:17%;height:9%;border-radius:50%;background:rgba(255,110,130,.55);opacity:0;pointer-events:none;
+  transition:opacity .25s ease}
+.ia-mej:nth-of-type(1){left:17%}.ia-mej:nth-of-type(2){right:17%}
+body[data-gesto="tierno"] .ia-mej,body[data-gesto="feliz"] .ia-mej{opacity:1}
+body[data-gesto="tierno"] :is(.ia-cara,.ia-cabeza) i{clip-path:inset(0 0 52% 0);--gy:1px}
+body[data-gesto="tierno"] :is(.ia-cara,.ia-cabeza){rotate:-10deg}
+/* Curiosa: ladea la cabeza y abre más un ojo (cuando escribes una pregunta) */
+body[data-gesto="curiosa"] :is(.ia-cara,.ia-cabeza){rotate:11deg}
+body[data-gesto="curiosa"] :is(.ia-cara,.ia-cabeza) i:first-of-type{scale:1.3}
+body[data-gesto="curiosa"]{--gx:.6px;--gy:1px}
+/* Guiño al cambiar de marca */
+body[data-gesto="guino"] :is(.ia-cara,.ia-cabeza) i:last-of-type{scale:1 .1}
+body[data-gesto="guino"] :is(.ia-cara,.ia-cabeza){rotate:-7deg}
+body[data-gesto="ladea"] :is(.ia-cara,.ia-cabeza){rotate:-9deg}
+/* Asiente al recibir tu mensaje; da un saltito cuando llega la respuesta */
+body.ia-asiente :is(.ia-cara,.ia-cabeza){animation:ia-asiente .7s var(--ia-ease)}
+@keyframes ia-asiente{25%,75%{translate:0 3px}50%,100%{translate:0 0}}
+body.ia-salta :is(.ia-cara,.ia-cabeza){animation:ia-salto .55s var(--ia-ease)}
+@keyframes ia-salto{35%{translate:0 -6px}70%{translate:0 1px}100%{translate:0 0}}
+@media (prefers-reduced-motion:reduce){body.ia-asiente :is(.ia-cara,.ia-cabeza),body.ia-salta :is(.ia-cara,.ia-cabeza){animation:none}}
+
+/* Cabeza tocable: se sacude y cambia de marca */
+.ia-cabeza[role="button"]{cursor:pointer}
+.ia-cabeza[role="button"]:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.ia-grande[role="button"]:focus-visible{outline-color:var(--ia-red)}
+.ia-sacude{animation:ia-sacude .58s cubic-bezier(.36,.07,.19,.97)}
+@keyframes ia-sacude{10%,90%{translate:-1px 0}20%,80%{translate:3px 0}30%,50%,70%{translate:-6px 0}40%,60%{translate:6px 0}}
+@media (hover:hover) and (pointer:fine){.ia-cabeza[role="button"]:hover{scale:1.05}}
+.ia-cabeza[role="button"]{transition:scale .18s var(--ia-ease),rotate .3s var(--ia-ease)}
+@media (prefers-reduced-motion:reduce){.ia-sacude{animation:none}}

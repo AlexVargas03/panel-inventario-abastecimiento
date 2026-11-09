@@ -6,6 +6,9 @@
   'use strict';
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var marca = 'alfa';
+  try { if (localStorage.getItem('ia_marca') === 'toru') marca = 'toru'; } catch (e) { /* sin almacenamiento */ }
+  if (marca === 'toru') document.body.classList.add('ia-toru');
   var st = { chat: [], busy: false, pending: null, iaOk: false, insights: null, insPedido: false, vistoKey: '', acciones: {}, abierto: false, error: null, animados: {} };
   try { st.acciones = JSON.parse(sessionStorage.getItem('ia_acc') || '{}'); } catch (e) { st.acciones = {}; }
   // Arranca siempre cerrado: el panel solo se abre pulsando la cabeza de abajo
@@ -30,6 +33,7 @@
     ok: svg('<polyline points="20 6 9 17 4 12"/>'),
     enviar: svg('<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>'),
     descarga: svg('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'),
+    cambiar: svg('<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>'),
     clip: svg('<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>'),
     doc: svg('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>'),
     filtro: svg('<polygon points="22 3 2 3 10 12.5 10 19 14 21 14 12.5 22 3"/>'),
@@ -51,14 +55,14 @@
   /* ---------- Estructura ---------- */
   var panel = $('#ia-panel');
   panel.innerHTML =
-    '<div class="ia-hd"><span class="ia-cabeza" id="ia-cab" aria-hidden="true"><i></i><i></i></span>' +
-    '<div class="ia-tt"><b>Paula</b><small><span class="ia-dot" id="ia-estado"></span><span id="ia-sub">En línea</span></small></div>' +
+    '<div class="ia-hd"><span class="ia-cabeza" id="ia-cab" aria-hidden="true"><i></i><i></i><b class="ia-mej"></b><b class="ia-mej"></b></span>' +
+    '<div class="ia-tt"><b>AlfaCorp Bot</b><small><span class="ia-dot" id="ia-estado"></span><span id="ia-sub">En línea</span></small></div>' +
     '<button class="ia-ico" id="ia-new" type="button" title="Nueva conversación" aria-label="Nueva conversación">' + IC.nuevo + '</button></div>' +
     '<p class="ia-warn" id="ia-warn" hidden></p>' +
     '<div id="ia-msgs" aria-live="polite"></div>' +
     '<div class="ia-ft"><div class="ia-quick" id="ia-quick"></div>' +
     '<div class="ia-in"><div class="ia-adjs" id="ia-adjs" hidden></div>' +
-    '<textarea id="ia-txt" rows="1" placeholder="Escríbele a Paula…" aria-label="Escríbele a Paula"></textarea>' +
+    '<textarea id="ia-txt" rows="1" placeholder="Escríbele a AlfaCorp Bot…" aria-label="Escríbele a AlfaCorp Bot"></textarea>' +
     '<div class="ia-bar"><button class="ia-clip" id="ia-clip" type="button" title="Adjuntar una imagen (o pégala con Ctrl+V)" aria-label="Adjuntar imagen">' + IC.clip + '</button>' +
     '<input type="file" id="ia-file" accept="image/png,image/jpeg,image/webp" multiple hidden>' +
     '<span class="ia-ctx" title="Filtros activos del dashboard">' + IC.filtro + '<span id="ia-ctx"></span></span>' +
@@ -80,7 +84,7 @@
     if (!r1 || !r1.width || !destino || !destino.ancho) { listo(); return; }
     var copia = document.createElement('div');
     copia.className = 'ia-vuela';
-    copia.innerHTML = '<i></i><i></i>';
+    copia.innerHTML = '<i></i><i></i>';   // sin cachetes: el vuelo dura medio segundo
     copia.style.cssText = 'left:' + r1.left + 'px;top:' + r1.top + 'px;width:' + r1.width + 'px;height:' + r1.height + 'px;' +
       '--ojo:' + r1.ojo + 'px;gap:' + Math.round(r1.ojo * 1.35) + 'px';
     document.body.appendChild(copia);
@@ -112,7 +116,7 @@
 
   function abrir(v, conVuelo) {
     var h = $('#ia-handle');
-    if (!$('.ia-cara', h)) h.innerHTML = '<span class="ia-cara"><i></i><i></i></span>';
+    if (!$('.ia-cara', h)) h.innerHTML = '<span class="ia-cara"><i></i><i></i><b class="ia-mej"></b><b class="ia-mej"></b></span>';
     h.setAttribute('aria-expanded', v ? 'true' : 'false');
     h.setAttribute('aria-label', v ? 'Cerrar el asistente' : 'Abrir el asistente');
     h.title = v ? 'Cerrar el asistente' : 'Abrir el asistente';
@@ -141,6 +145,30 @@
   $('#ia-handle').onclick = function () { abrir(!st.abierto, true); };
   $('#ia-lat').onclick = function () { abrir(false, true); };
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && st.abierto) abrir(false, true); });
+  /* Marca del chat: al tocar la cabeza de AlfaCorp Bot se sacude y cambia de rojo (ALFA) a negro (TORU), y al revés */
+  function ponerMarca(m) {
+    marca = m === 'toru' ? 'toru' : 'alfa';
+    document.body.classList.toggle('ia-toru', marca === 'toru');
+    try { localStorage.setItem('ia_marca', marca); } catch (e) { /* sin almacenamiento */ }
+    [].forEach.call(document.querySelectorAll('.ia-cabeza[role="button"]'), etiquetar);
+    gesto('guino', 900);
+  }
+  function etiquetar(el) {
+    var t = marca === 'toru' ? 'Tócame para volver a ALFA' : 'Tócame para cambiar a TORU';
+    el.title = t; el.setAttribute('aria-label', t);
+  }
+  function tocar(el) {
+    el.classList.remove('ia-sacude'); void el.offsetWidth; el.classList.add('ia-sacude');
+    setTimeout(function () { ponerMarca(marca === 'toru' ? 'alfa' : 'toru'); }, 220);   // cambia a mitad de la sacudida
+    setTimeout(function () { el.classList.remove('ia-sacude'); }, 600);
+  }
+  function tocable(el) {
+    if (!el) return;
+    el.setAttribute('role', 'button'); el.tabIndex = 0; el.removeAttribute('aria-hidden'); etiquetar(el);
+    el.onclick = function () { tocar(el); };
+    el.onkeydown = function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tocar(el); } };
+  }
+  tocable($('#ia-cab'));
   $('#ia-new').onclick = function () { if (!st.busy) { window.stSend('streamlit:setComponentValue', { value: { id: nuevoId(), tipo: 'reiniciar' }, dataType: 'json' }); } };
 
   /* ---------- Gestos de los ojos ----------
@@ -155,9 +183,13 @@
   var G = { breve: null, t: null, dormido: false, quieto: 0 };
   function base() {
     if (st.busy) return 'pensando';
-    if (document.activeElement === txt && txt.value.trim()) return 'atento';
+    if (document.activeElement === txt && txt.value.trim()) return txt.value.indexOf('?') >= 0 ? 'curiosa' : 'atento';
     if (G.dormido && !st.abierto) return 'sueno';
     return '';
+  }
+  function animarCabeza(cls, ms) {
+    document.body.classList.remove(cls); void document.body.offsetWidth; document.body.classList.add(cls);
+    setTimeout(function () { document.body.classList.remove(cls); }, ms);
   }
   function pintarGesto() { document.body.setAttribute('data-gesto', G.breve || base()); }
   function gesto(nombre, ms) {
@@ -190,7 +222,7 @@
     G.quieto += 1;
     if (!G.dormido && !st.abierto && G.quieto >= 8) { G.dormido = true; pintarGesto(); }
     if (!G.breve && !base() && G.quieto >= 1 && Math.random() < 0.55) {
-      gesto(['izq', 'der', 'arriba', 'izq', 'der'][Math.floor(Math.random() * 5)], 900 + Math.random() * 600);
+      gesto(['izq', 'der', 'arriba', 'izq', 'der', 'ladea'][Math.floor(Math.random() * 6)], 900 + Math.random() * 600);
     }
     setTimeout(vagar, 3500 + Math.random() * 1500);
   }
@@ -241,7 +273,7 @@
 
   /* ---------- Imágenes adjuntas ----------
    * Se pegan (Ctrl+V), se arrastran o se eligen con el clip. Antes de enviarlas se reducen en el
-   * navegador: 1568 px de lado para que Paula las lea (y no cobre de más) y una miniatura para el chat. */
+   * navegador: 1568 px de lado para que AlfaCorp Bot las lea (y no cobre de más) y una miniatura para el chat. */
   var adjuntos = [], MAX_ADJ = 3, LADO = 1568, LADO_MINI = 360;
   var cajaAdj = $('#ia-adjs');
   function reducir(file, lado, calidad) {
@@ -322,6 +354,9 @@
     if ((!t && !adjuntos.length) || st.busy) return;
     var imgs = adjuntos.slice();
     if (!t) t = '¿Me explicas lo que se ve en esta imagen del panel?';
+    // Reacción inmediata a lo que mandas: se enternece si le agradeces; si no, asiente
+    if (/gracias|genial|excelente|buen[ií]sim|te quiero|crack|eres la mejor/i.test(t)) gesto('tierno', 1600);
+    else animarCabeza('ia-asiente', 700);
     var subir = st.chat.length ? null : medir($('#ia-hcab'));
     if (!st.iaOk) { st.error = 'El asistente no está configurado: falta ANTHROPIC_API_KEY en los Secrets de la app.'; pintar(true); return; }
     txt.value = ''; txt.style.height = 'auto';
@@ -847,6 +882,63 @@
         if (acc.obsoleto.buscar === '') fijar('pl-oq', '');
         foco = document.getElementById('pl-otb') || foco;
       }
+      /* Controles finos: se aplican cuando la pestaña ya está pintada */
+      var fino = function (fn, ms) { setTimeout(function () { try { fn(); } catch (e) { console.error('Control del dashboard', e); } }, ms || 150); };
+      if (acc.vista_ventas) {
+        fino(function () { var b = document.getElementById(acc.vista_ventas === 'margen' ? 'so-vt-p' : 'so-vt-s'); if (b && b.getAttribute('aria-selected') !== 'true') b.click(); });
+        foco = document.getElementById('so-vtitle') || foco;
+      }
+      if (acc.abc_celda) {
+        fino(function () {
+          var pin = document.querySelector('#pg-pn .ax-cell[aria-pressed="true"]');
+          if (acc.abc_celda === 'cerrar') { if (typeof mxHide === 'function') mxHide(); return; }
+          var c = document.querySelector('#pg-pn .ax-cell[data-pick-abc="' + acc.abc_celda + '"]');
+          if (c && c !== pin) c.click();
+        }, 250);
+        foco = document.getElementById('mx-title') || foco;
+      }
+      if (acc.croquis) {
+        fino(function () {
+          if (acc.croquis === 'cerrar') { if (typeof almHide === 'function') almHide(); return; }
+          var pg = document.getElementById('pg-alm');
+          var host = pg && !pg.hidden ? pg : document.getElementById('pg-pn');
+          var b = host && host.querySelector('.alm-btn[data-alm="' + acc.croquis + '"]');
+          if (b && b.getAttribute('aria-expanded') !== 'true') b.click();
+        }, 250);
+        foco = document.getElementById('pg-alm') || foco;
+      }
+      if (acc.simulador) {
+        var sm = acc.simulador;
+        fino(function () {
+          var modo = document.getElementById(sm.tipo === 'producto' ? 'pl-sm-s' : 'pl-sm-p');
+          if (modo && modo.getAttribute('aria-selected') !== 'true') modo.click();
+          if (sm.buscar) {
+            var q = document.getElementById('pl-sq');
+            q.value = sm.buscar; q.dispatchEvent(new Event('input', { bubbles: true }));
+            var li = document.querySelector('#pl-sl li[data-i]');
+            if (li) li.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+            q.blur();
+          }
+          if (sm.descuento !== null && sm.descuento !== undefined) {
+            var d = document.getElementById('pl-d'); d.value = sm.descuento; d.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        }, 250);
+        foco = document.getElementById('pl-sim') || foco;
+      }
+      if (acc.orden_obsoletos) {
+        var ob = acc.orden_obsoletos;
+        fino(function () {
+          var th = document.querySelector('.pl-th[data-k="' + ob.columna + '"]');
+          if (!th) return;
+          var quiere = ob.orden === 'asc' ? 1 : -1;
+          for (var n = 0; n < 2; n++) {
+            var listo = typeof plSortK !== 'undefined' && plSortK === ob.columna && plSortD === quiere;
+            if (listo) break;
+            th.click();
+          }
+        }, 250);
+        foco = document.getElementById('pl-otb') || foco;
+      }
       if (acc.conteo) {
         // Conteo cíclico: elegir un proceso (clic en su fila) o "todos" (primera tarjeta). Tras pintar la pestaña.
         setTimeout(function () {
@@ -947,8 +1039,9 @@
     var wrap = document.createElement('div'); wrap.className = 'ia-bienv';   // ocupa todo el alto y centra el saludo
 
     var hero = document.createElement('div'); hero.className = 'ia-hero';
-    hero.innerHTML = '<span class="ia-cabeza ia-grande" id="ia-hcab" aria-hidden="true"><i></i><i></i></span><h3>Hola, soy Paula</h3>' +
-      '<p>Te ayudo a entender el panel. ¿En qué te echo una mano?</p>';
+    hero.innerHTML = '<span class="ia-cabeza ia-grande" id="ia-hcab"><i></i><i></i><b class="ia-mej"></b><b class="ia-mej"></b></span><h3>Hola, soy AlfaCorp Bot</h3>' +
+      '<p>Tu asistente de ALFACORP, para ALFA y TORU. ¿En qué te echo una mano?</p>';
+    tocable($('#ia-hcab', hero));
     wrap.appendChild(hero);
 
     var grid = document.createElement('div'); grid.className = 'ia-ideas';
@@ -1016,7 +1109,7 @@
     if (!st.chat.length) msgs.appendChild(bienvenida());   // desaparece con la primera pregunta
     st.chat.forEach(function (m) { colgar(m); });
     if (st.busy) {
-      var t = burbuja('assistant'); t.m.classList.add('ia-typing'); t.b.setAttribute('aria-label', 'Paula está escribiendo'); t.b.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>'; msgs.appendChild(t.m);
+      var t = burbuja('assistant'); t.m.classList.add('ia-typing'); t.b.setAttribute('aria-label', 'AlfaCorp Bot está escribiendo'); t.b.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>'; msgs.appendChild(t.m);
     }
     if (st.error) { var e = burbuja('assistant'); e.b.style.borderColor = '#e8b4b4'; e.b.textContent = st.error; msgs.appendChild(e.m); }
     btn.disabled = st.busy; txt.disabled = st.busy;
@@ -1028,7 +1121,9 @@
     panel.classList.toggle('ia-saludo', !st.chat.length);   // con la bienvenida, la cabeza esta abajo y no en la cabecera
     if (G.ocupado && !st.busy) {
       var ult = st.chat[st.chat.length - 1];
-      gesto(st.error || (ult && ult.error) ? 'triste' : 'feliz', st.error ? 2600 : 1800);
+      var mal = st.error || (ult && ult.error);
+      gesto(mal ? 'triste' : 'feliz', st.error ? 2600 : 1800);
+      if (!mal) animarCabeza('ia-salta', 550);
     } else pintarGesto();
     G.ocupado = st.busy;
     if (abajo || forzar || st.busy) msgs.scrollTop = msgs.scrollHeight;

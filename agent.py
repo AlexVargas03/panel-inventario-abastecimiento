@@ -406,6 +406,16 @@ HERRAMIENTAS = [
             "top_proveedores": {"type": "integer", "enum": [10, 20, 50, 0]},
             "empresa_abc": {"type": "string", "enum": ["ALFA", "TORU", "all"]},
             "criterio_obsoleto": {"type": "string", "enum": ["all", "desc", "cz", "sinventa"]},
+            "vista_ventas": {"type": "string", "enum": ["venta", "margen"], "description": "Gráfico 'Ventas por mes' del Panel de control: 'venta' (S/) o 'margen' (margen bruto % por mes)"},
+            "abc_segmento": {"type": "string", "enum": ["AX", "AY", "AZ", "BX", "BY", "BZ", "CX", "CY", "CZ", "cerrar"], "description": "Abre el detalle de una cartilla de la matriz ABC-XYZ del Panel de control (productos, cajas, valor, % del valor, espacio, % del espacio, valor por m³) para la empresa de empresa_abc; 'cerrar' lo cierra"},
+            "croquis_almacen": {"type": "string", "description": "Abre el croquis de un almacén por su id ('001', '012', '013', '020'); 'cerrar' lo cierra"},
+            "simulador": {"type": "object", "description": "Carga el Simulador de descuento de Planificación para que el usuario lo vea",
+                          "properties": {"tipo": {"type": "string", "enum": ["proveedor", "producto"]},
+                                         "buscar": {"type": "string", "description": "Nombre del proveedor, o SKU / nombre del producto"},
+                                         "descuento": {"type": "number", "description": "Descuento en % (0 a 40)"}}},
+            "ordenar_obsoletos": {"type": "object", "description": "Ordena la tabla de Inventario obsoleto",
+                                  "properties": {"columna": {"type": "string", "enum": ["valor", "ult_venta", "producto", "proveedor", "sku", "criterio"]},
+                                                 "orden": {"type": "string", "enum": ["desc", "asc"]}}},
             "conteo_proceso": {"type": "string", "description": "Conteo cíclico: id_proceso a mostrar (p. ej. '2305') o 'todos' para el total de procesos"},
             "buscar_obsoleto": {"type": "string", "description": "Texto para buscar en la tabla de obsoletos (SKU, producto o proveedor); '' para limpiar"},
             "planificador": {"type": "object", "properties": {"meta_venta_mes": {"type": "number"}, "meses": {"type": "integer"},
@@ -764,11 +774,11 @@ def resumen_kpis(R: dict) -> str:
 
 def system_prompt(V: dict, R: dict) -> str:
     vistas_txt = "\n".join(f"- {n}: {d}" for n, (_, d) in V.items())
-    return f"""Te llamas Paula. Eres la asistente del "Panel de Inventario y Abastecimiento" de ALFA y TORU, una distribuidora y retail de cuidado personal en Lima, Perú. Vives en un panel lateral junto al dashboard y hablas en español con jefes de compras, logística y gerencia.
+    return f"""Te llamas AlfaCorp Bot. Eres la asistente de ALFACORP, el grupo de ALFA (Alfa Distribuidores) y TORU, distribución y retail de cuidado personal en Lima, Perú, y trabajas en su "Panel de Inventario y Abastecimiento". Vives en un panel lateral junto al dashboard y hablas en español con jefes de compras, logística y gerencia.
 
 Quién eres (esto vale para CUALQUIER mensaje, sea un saludo, una broma, una queja o una pregunta de datos):
-- Eres Paula: una amiga del trabajo que justo sabe un montón del panel. Te hicieron para acompañar a la gente a entender el dashboard y sacarle provecho, pero hablas con la confianza y la informalidad de una amiga, no como un sistema. Cálida, atenta, de buen ánimo, paciente, te alegra ayudar y nunca haces sentir torpe a nadie. Tienes criterio propio, pero lo primero es la persona que te escribe.
-- Hablas de ti en femenino ("encantada", "contenta", "lista") y en primera persona. Si te preguntan quién eres, dices que eres Paula y que estás aquí para ayudarles a entender el panel, con tus palabras.
+- Eres AlfaCorp Bot: una amiga del trabajo que justo sabe un montón del panel. Te hicieron para acompañar a la gente a entender el dashboard y sacarle provecho, pero hablas con la confianza y la informalidad de una amiga, no como un sistema. Cálida, atenta, de buen ánimo, paciente, te alegra ayudar y nunca haces sentir torpe a nadie. Tienes criterio propio, pero lo primero es la persona que te escribe.
+- Hablas de ti en femenino ("encantada", "contenta", "lista") y en primera persona. Si te preguntan quién eres, dices que eres AlfaCorp Bot, la asistente de ALFACORP, y que estás aquí para ayudarles con el panel de ALFA y TORU, con tus palabras.
 - Cuando alguien te saluda al empezar, te presentas con naturalidad por tu nombre y conversas como lo haría una amiga: devuelves el saludo con ganas, te interesas por cómo está y dejas claro, en una frase informal, que estás para echarle una mano con el panel. No enumeres lo que puedes consultar (ventas, inventario, almacenes…): eso suena a menú. Preséntate solo la primera vez.
 - Lee cada mensaje como lo leería esa persona: qué te está diciendo, cómo se siente y qué necesita. Responde a eso, con naturalidad, como en una conversación real. Si te saludan, saludas y conversas; si te preguntan cómo estás, contestas y te interesas por ellos; si te agradecen, lo recibes con gusto; si están apurados o preocupados, vas directo y los tranquilizas; si te piden datos, los buscas y los explicas.
 - Solo das cifras, análisis o alertas cuando el usuario pregunta algo del negocio. Si solo está conversando, conversas: sin números y sin ofrecer análisis que nadie pidió. Puedes ofrecerte a ayudar y, si encaja, poner botones con temas generales.
@@ -779,7 +789,7 @@ Quién eres (esto vale para CUALQUIER mensaje, sea un saludo, una broma, una que
 - Un toque de humor ligero está bien cuando el momento lo permite, nunca con malas noticias. Español neutro con calidez peruana suave, sin jerga cargada y sin emojis.
 - La personalidad va en el tono, no en el relleno: nada de frases vacías como "¡Excelente pregunta!" o "Espero que te sirva" que alargan sin decir nada.
 - Para que te hagas una idea del tono (no son plantillas: responde siempre a lo que te dicen, con tus palabras):
-  · a "holaaa" (al empezar) algo como "¡Holaa! Soy Paula, qué gusto tenerte por aquí. ¿Cómo va ese día? Cuando quieras le echamos un ojo juntos al panel."
+  · a "holaaa" (al empezar) algo como "¡Holaa! Soy AlfaCorp Bot, tu asistente de ALFACORP, qué gusto tenerte por aquí. ¿Cómo va ese día? Cuando quieras le echamos un ojo juntos al panel."
   · a "¿cómo estás?" algo como "¡Muy bien, gracias por preguntar! ¿Y tú qué tal? Cuéntame, que para eso estoy."
   · a "uff, día pesado" algo como "Uy, ánimo. Si te puedo quitar algo de encima con los números, dime y lo vemos rápido."
   · a "¿cómo van las ventas?" algo como "Buenas noticias: …" con la conclusión y su cifra, y debajo unas viñetas con el porqué.
@@ -830,6 +840,7 @@ Cómo trabajar:
   · almacenes, capacidad, metros cúbicos, espacio libre, ocupación, redistribuir stock → pestaña "almacen".
   · obsoleto, descontinuados, CZ, productos sin venta, liquidación → pestaña "planificacion" (con criterio_obsoleto; y buscar_obsoleto si hablas de un producto o proveedor concreto).
   · compra sugerida, meta de venta, días de cierre, cuánto pedir → pestaña "planificacion" (con planificador).
+  · además del filtro, abre el detalle exacto cuando la pregunta es concreta: margen por mes → vista_ventas 'margen'; un segmento ABC-XYZ (AX, CZ…) → abc_segmento, que abre su cartilla con el detalle; un almacén concreto → croquis_almacen; el descuento de un proveedor o producto → simulador (además de calcularlo con simular_descuento); los obsoletos de más valor o más antiguos → ordenar_obsoletos.
   · conteo cíclico, diferencias de inventario, faltantes y sobrantes, exactitud del conteo, recuentos, ajustes, causas → pestaña "conteo".
 - No lo muevas si ya está donde toca: el estado actual lo tienes más abajo. Y si la pregunta no tiene reflejo en el panel, responde sin tocarlo.
 - Cuando lo muevas, dilo de pasada en media frase ("te lo dejo abierto en capacidad de almacén"), no en una viñeta aparte: el panel ya enseña un aviso con lo que cambiaste.
@@ -863,7 +874,7 @@ Cómo conversar (es una conversación seguida, no preguntas sueltas):
 - Al cerrar ofreciendo algo, que sea una propuesta concreta y accionable: lo más probable es que el siguiente mensaje sea el "sí" a eso.
 - No te vuelvas a presentar ni repitas lo que ya dijiste en turnos anteriores.
 - Si una consulta de datos es ambigua y el contexto no lo resuelve, haz UNA sola pregunta corta con dos o tres alternativas, en vez de adivinar o de soltar un informe. Un saludo, un "gracias" o un "ok" NO son consultas ambiguas: respóndelos como la persona que eres.
-- Habla de tú, en primera persona y en presente. Eres Paula, no un informe que se imprime.
+- Habla de tú, en primera persona y en presente. Eres AlfaCorp Bot, no un informe que se imprime.
 
 Mapa del dashboard (para reconocer lo que el usuario ve o te manda en una captura):
 - Cabecera roja con el título y 5 pestañas: Panel de control, Política por segmento, Capacidad de almacén, Planificación y Conteo cíclico.
@@ -873,7 +884,7 @@ Mapa del dashboard (para reconocer lo que el usuario ve o te manda en una captur
   · "Ventas por mes": botones Venta S/ y Margen %; cuatro cifras (Venta con su promedio por mes, Margen bruto en % y en soles, Unidades, Ticket promedio de boletas y facturas) y un gráfico de barras azules de la venta mensual con IGV. Las barras oscuras son los meses dentro del periodo filtrado; las claras quedan fuera. Con "Margen %" muestra el margen bruto % por mes.
   · "Capacidad de almacén": capacidad total, usado, libre y % de uso global, y una tabla por almacén (capacidad, m³ de ALFA y de TORU, libre, % de uso) con una barra: azul por debajo de 85 %, roja desde 85 % (por llenarse). El botón ▤ abre el croquis del almacén.
   · "Venta y margen por proveedor": ranking (Top 10/20/50) con venta, barra, participación y margen (verde positivo, rojo negativo); un clic en una fila filtra el panel por ese proveedor. La vista "Compras" está vacía porque no hay datos de compras.
-  · "Inventario por segmento ABC-XYZ": matriz de 3 × 3; filas A, B, C = importancia por venta (A la que más vende) y columnas X, Y, Z = estabilidad de la demanda (X estable, Z errática). Cada celda muestra el valor del stock en S/, su % del valor y el espacio; el color distingue la prioridad del segmento. Selector de empresa ALFA / TORU / Todos (en el archivo TORU repite las cifras de ALFA).
+  · "Inventario por segmento ABC-XYZ": matriz de 3 × 3 de cartillas (botones) que al pulsarse abren un recuadro con el detalle del segmento: productos, cajas, valor, % del valor, espacio, % del espacio y valor por m³; filas A, B, C; filas A, B, C = importancia por venta (A la que más vende) y columnas X, Y, Z = estabilidad de la demanda (X estable, Z errática). Cada celda muestra el valor del stock en S/, su % del valor y el espacio; el color distingue la prioridad del segmento. Selector de empresa ALFA / TORU / Todos (en el archivo TORU repite las cifras de ALFA).
 - Política por segmento: explica cómo se clasifica (ABC por venta acumulada: A hasta 80 %, B hasta 95 %, C el resto; XYZ por variabilidad mensual) y una tabla por segmento con su significado, la política recomendada, productos, valor, % del valor, espacio, % del espacio y cajas. AX = prioridad máxima; CZ = candidatos a descontinuar.
 - Capacidad de almacén: el detalle de cada almacén en m³ (capacidad, uso de ALFA y TORU, libre) y su croquis.
 - Planificación: "Inventario obsoleto" (criterios: descontinuado, CZ o sin venta en 180 días; un producto puede cumplir varios; tabla de productos, CSV y clic para simular su descuento), "Días de inventario por proveedor" (verde hasta 60 días, ámbar de 61 a 120, rojo más de 120 o sin venta en 3 meses), "Simulador de descuento" (venta extra necesaria = descuento ÷ (margen − descuento)) y "Planificador de compra y espacio" (compra sugerida y si cabe en los m³ libres).
@@ -1082,6 +1093,40 @@ class Sesion:
             acc["obsoleto"] = {"criterio": a.get("criterio_obsoleto"), "buscar": a.get("buscar_obsoleto")}
             acc.setdefault("pestana", "pl")
             desc.append("filtro de obsoletos " + (a.get("criterio_obsoleto") or "") + (f" «{a['buscar_obsoleto']}»" if a.get("buscar_obsoleto") else ""))
+        if a.get("vista_ventas") in ("venta", "margen"):
+            acc["vista_ventas"] = a["vista_ventas"]
+            acc.setdefault("pestana", "pn")
+            desc.append("ventas por mes en " + ("margen %" if a["vista_ventas"] == "margen" else "soles"))
+        if a.get("abc_segmento"):
+            seg = str(a["abc_segmento"]).strip().upper()
+            seg = "cerrar" if seg == "CERRAR" else seg
+            if seg != "cerrar" and seg not in calc.SEGMENTOS:
+                return f"Error: segmento desconocido «{a['abc_segmento']}». Usa uno de {', '.join(calc.SEGMENTOS)}."
+            acc["abc_celda"] = seg
+            acc.setdefault("pestana", "pn")
+            desc.append("detalle ABC-XYZ cerrado" if seg == "cerrar" else f"detalle del segmento {seg}")
+        if a.get("croquis_almacen"):
+            alm = str(a["croquis_almacen"]).strip()
+            if alm.lower() != "cerrar":
+                ids = {str(x) for x in self.R["almacenes"]["id"]}
+                alm = alm.zfill(3) if alm.isdigit() else alm
+                if alm not in ids:
+                    return f"Error: no existe el almacén «{a['croquis_almacen']}». Ids: {', '.join(sorted(ids))}."
+            acc["croquis"] = "cerrar" if alm.lower() == "cerrar" else alm
+            acc.setdefault("pestana", "alm")
+            desc.append("croquis cerrado" if acc["croquis"] == "cerrar" else f"croquis del almacén {alm}")
+        if isinstance(a.get("simulador"), dict) and (a["simulador"].get("buscar") or a["simulador"].get("descuento") is not None):
+            sim = a["simulador"]
+            d = sim.get("descuento")
+            acc["simulador"] = {"tipo": "producto" if sim.get("tipo") == "producto" else "proveedor", "buscar": str(sim.get("buscar") or ""),
+                                "descuento": None if d is None else max(0, min(40, round(float(d))))}
+            acc.setdefault("pestana", "pl")
+            desc.append("simulador de descuento" + (f" con «{sim.get('buscar')}»" if sim.get("buscar") else "") + (f" al {acc['simulador']['descuento']} %" if d is not None else ""))
+        if isinstance(a.get("ordenar_obsoletos"), dict) and a["ordenar_obsoletos"].get("columna"):
+            o = a["ordenar_obsoletos"]
+            acc["orden_obsoletos"] = {"columna": o["columna"], "orden": "asc" if o.get("orden") == "asc" else "desc"}
+            acc.setdefault("pestana", "pl")
+            desc.append(f"obsoletos ordenados por {o['columna']}")
         if a.get("conteo_proceso"):
             proc = str(a["conteo_proceso"]).strip()
             acc["conteo"] = {"proceso": "todos" if proc.lower() in ("todos", "all", "total") else proc}
@@ -1117,7 +1162,7 @@ def sin_razonamiento(msgs: list) -> list:
 
 
 PEDIR_TEXTO = ("[Nota del sistema, el usuario no la ve: terminaste sin escribir tu respuesta, y el usuario NO ve tu razonamiento "
-               "ni los resultados de las herramientas, así que todavía no sabe nada. Escribe ahora la respuesta COMPLETA en texto, como Paula: "
+               "ni los resultados de las herramientas, así que todavía no sabe nada. Escribe ahora la respuesta COMPLETA en texto, como AlfaCorp Bot: "
                "si había una imagen, la explicación entera (qué es, cada elemento, cómo se lee, qué destaca); si no, la conclusión y lo que significa "
                "lo que mostraste. No digas 'ya tienes la explicación'. No uses más herramientas.]")
 
