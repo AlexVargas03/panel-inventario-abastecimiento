@@ -7,12 +7,16 @@ Streamlit Cloud:     subir esta carpeta a un repositorio privado de GitHub, eleg
 from __future__ import annotations
 
 import os
+from datetime import datetime, timedelta, timezone
 
 import streamlit as st
 
 import agent
 import calc
 import panel_component
+import sharepoint
+
+LIMA = timezone(timedelta(hours=-5))   # Perú no cambia de horario
 
 st.set_page_config(page_title="Panel de Inventario y Abastecimiento", page_icon="📦", layout="wide", initial_sidebar_state="collapsed")
 
@@ -42,11 +46,46 @@ if clave_app and not st.session_state.get("acceso_ok"):
     st.stop()
 
 # ----------------------------------------------------------------------------
-# Datos: archivos de /data, reemplazables desde la barra lateral
+# Datos: SharePoint (si está configurado) o los archivos de /data, reemplazables desde la barra lateral
 # ----------------------------------------------------------------------------
 @st.cache_data(show_spinner="Cargando archivos…")
 def datos_por_defecto():
     return calc.cargar_por_defecto()
+
+
+def corte_diario(hora: int) -> str:
+    """Última hora de corte en Lima. Cambia una vez al día, y ahí se vuelven a pedir los archivos."""
+    ahora = datetime.now(LIMA)
+    corte = ahora.replace(hour=hora, minute=0, second=0, microsecond=0)
+    if ahora < corte:
+        corte -= timedelta(days=1)
+    return corte.strftime("%Y-%m-%d %H:%M")
+
+
+@st.cache_data(show_spinner="Trayendo los archivos de SharePoint…", max_entries=2)
+def datos_sharepoint(corte: str, huella: str, _cfg: dict):
+    """Se guarda en memoria hasta el siguiente corte (o hasta que cambie la configuración): una descarga al día para todos."""
+    try:
+        ds, info = sharepoint.cargar(_cfg)
+    except Exception as e:
+        ds, info = {}, {"fallo": str(e)}
+    info["traido"] = datetime.now(LIMA).isoformat()
+    return ds, info
+
+
+cfg_sp = sharepoint.a_dict(secreto("sharepoint") or {})
+info_sp, corte = None, None
+ds = dict(datos_por_defecto())
+if sharepoint.configurado(cfg_sp):
+    hora_corte = int(cfg_sp.get("hora_corte", 6))
+    corte = corte_diario(hora_corte)
+    huella = repr(sorted((k, v) for k, v in cfg_sp.items() if k != "client_secret"))   # cambia si cambia sitio, carpeta o archivos
+    ds_sp, info_sp = datos_sharepoint(corte, huella, cfg_sp)
+    # Si falló, se reintenta cada 30 minutos en vez de esperar al día siguiente
+    if info_sp.get("fallo") and datetime.now(LIMA) - datetime.fromisoformat(info_sp["traido"]) > timedelta(minutes=30):
+        datos_sharepoint.clear()
+        ds_sp, info_sp = datos_sharepoint(corte, huella, cfg_sp)
+    ds.update(ds_sp)        # lo que no llegue de SharePoint se queda con los archivos de data/
 
 
 @st.cache_data(show_spinner="Calculando indicadores…")
@@ -75,11 +114,22 @@ ETIQUETAS = {
     "sku_venta": "Venta por SKU (sku_venta.csv)",
 }
 
-ds = dict(datos_por_defecto())
 subidos = st.session_state.setdefault("subidos", {})
 with st.sidebar:
     st.header("📁 Archivos")
-    st.caption("La app usa los archivos de la carpeta data/. Puedes reemplazar cualquiera por uno nuevo (CSV o Excel) solo para esta sesión; para dejarlo fijo, reemplázalo en data/ del repositorio.")
+    if info_sp is None:
+        st.caption("La app usa los archivos de la carpeta data/. Puedes reemplazar cualquiera por uno nuevo (CSV o Excel) solo para esta sesión; para dejarlo fijo, reemplázalo en data/ del repositorio.")
+    elif info_sp.get("fallo"):
+        st.error(f"No pude leer SharePoint: {info_sp['fallo']} Mientras tanto uso los archivos de data/. Lo reintento cada 30 minutos.")
+    else:
+        st.caption(f"Datos de SharePoint del corte {corte} (se actualizan cada día a las {hora_corte}:00, hora de Lima).")
+        for clave, a in info_sp["archivos"].items():
+            st.caption(f"✓ {a['nombre']} · {a['filas']:,} filas · modificado {a['modificado'][:16].replace('T', ' ')} UTC")
+        for clave, err in info_sp["errores"].items():
+            st.warning(f"{clave}: {err} Uso el de data/.")
+    if info_sp is not None and st.button("Traer ahora de SharePoint"):
+        datos_sharepoint.clear()
+        st.rerun()
     exp = st.expander("Reemplazar archivos", expanded=False)
     for clave, etiqueta in ETIQUETAS.items():
         tipos = ["xlsx", "csv", "json"] if clave == "almacenes" else ["csv", "xlsx"]
