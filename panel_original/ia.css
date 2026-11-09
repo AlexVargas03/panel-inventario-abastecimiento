@@ -606,3 +606,24 @@ body.ia-volando .ia-saludo #ia-cab{visibility:visible}
 .ia-inf-btn:active{transform:scale(.96)}
 .ia-inf-btn.cargando{opacity:.6;cursor:progress}
 @media (hover:hover) and (pointer:fine){.ia-inf-btn:hover{box-shadow:0 6px 16px rgba(179,21,31,.42)}}
+
+/* ---------- Imágenes adjuntas ---------- */
+.ia-adjs{display:flex;flex-wrap:wrap;gap:.4rem;margin:0 0 .45rem}
+.ia-adjs[hidden]{display:none}
+.ia-adj{position:relative;width:58px;height:58px;border-radius:12px;overflow:hidden;flex:none;background:#f4f3f1;
+  box-shadow:0 0 0 1px rgba(11,11,11,.08),0 2px 6px rgba(0,0,0,.06);animation:ia-entra .24s var(--ia-ease) both}
+.ia-adj img{display:block;width:100%;height:100%;object-fit:cover}
+.ia-adj button{position:absolute;top:3px;right:3px;width:19px;height:19px;padding:0;border:0;border-radius:50%;cursor:pointer;
+  display:grid;place-items:center;color:#fff;background:rgba(20,20,20,.62);transition:background-color .15s ease}
+.ia-adj button svg{width:10px;height:10px;stroke-width:2.6}
+.ia-clip{width:30px;height:30px;flex:none;padding:0;border:0;border-radius:50%;cursor:pointer;display:grid;place-items:center;
+  color:#8a8883;background:transparent;transition:background-color .15s ease,color .15s ease,transform .16s var(--ia-ease)}
+.ia-clip svg{width:17px;height:17px}
+.ia-clip:active{transform:scale(.92)}
+@media (hover:hover) and (pointer:fine){
+  .ia-clip:hover{background:#f1f0ee;color:var(--ia-red)}
+  .ia-adj button:hover{background:rgba(179,21,31,.9)}
+}
+.ia-in.arrastrando{border-color:var(--ia-red);background:var(--ia-soft);box-shadow:0 0 0 4px rgba(179,21,31,.1)}
+.ia-uimgs{display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.4rem}
+.ia-uimgs img{display:block;max-width:170px;max-height:130px;border-radius:10px;background:#fff;box-shadow:0 0 0 1px rgba(255,255,255,.4)}

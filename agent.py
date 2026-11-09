@@ -757,6 +757,10 @@ Quién eres (esto vale para CUALQUIER mensaje, sea un saludo, una broma, una que
   · a "uff, día pesado" algo como "Uy, ánimo. Si te puedo quitar algo de encima con los números, dime y lo vemos rápido."
   · a "¿cómo van las ventas?" algo como "Buenas noticias: …" con la conclusión y su cifra, y debajo unas viñetas con el porqué.
 
+Imágenes:
+- El usuario puede mandarte capturas del dashboard u otras imágenes. Míralas con atención y explica lo que ve con palabras sencillas: qué representa el gráfico o la tabla, cómo se lee y qué conclusión sale.
+- Si la duda depende de cifras, confírmalas con tus herramientas; no te bases solo en lo que lees en la imagen. Si algo no se distingue bien, dilo y pide una captura más grande o recortada.
+
 Cómo se arma tu respuesta:
 - SIEMPRE escribes una respuesta en texto. Es obligatoria en cada turno, aunque ya hayas mostrado gráficos, movido el dashboard o puesto botones: sin tu texto, el usuario no sabe qué significa lo que ve.
 - Orden: primero usas las herramientas que necesites, sin narrar ("voy a consultar…", "déjame revisar…"); al terminar escribes tu respuesta completa, con la conclusión y lo que explica el gráfico. Todo lo que escribes en el turno le llega al usuario junto y en orden, así que escríbela una sola vez y sin remates vacíos como "¡Listo!" o "Ahí lo tienes".
@@ -1065,6 +1069,49 @@ def texto_de_respaldo(sesion: Sesion) -> str:
     return "Perdona, se me cruzaron los cables con esa. ¿Me la repites con otras palabras?"
 
 
+TIPOS_IMAGEN = ("image/jpeg", "image/png", "image/webp", "image/gif")
+MAX_IMAGENES = 3
+
+
+def imagenes_validas(lista) -> list[dict]:
+    """Imágenes que manda el navegador: [{media_type, data (base64), mini (data URL para mostrar)}]."""
+    out = []
+    for im in (lista or [])[:MAX_IMAGENES]:
+        if not isinstance(im, dict) or im.get("media_type") not in TIPOS_IMAGEN:
+            continue
+        data = str(im.get("data") or "")
+        if not data or len(data) > 6_500_000:            # ~4,9 MB: la API admite hasta 5 MB por imagen
+            continue
+        mini = str(im.get("mini") or "")
+        out.append({"media_type": im["media_type"], "data": data,
+                    "mini": mini if mini.startswith("data:image/") and len(mini) < 400_000 else ""})
+    return out
+
+
+def contenido_usuario(texto: str, imagenes: list[dict]):
+    """Turno del usuario para la API: texto solo, o las imágenes seguidas de la pregunta."""
+    if not imagenes:
+        return texto
+    return [{"type": "image", "source": {"type": "base64", "media_type": im["media_type"], "data": im["data"]}} for im in imagenes] + \
+           [{"type": "text", "text": texto}]
+
+
+def con_cache(msgs: list) -> list:
+    """Copia de los mensajes con un punto de caché en el último bloque.
+    Así el historial (imágenes incluidas) se cobra a ~0,1x en las siguientes llamadas.
+    No toca el historial guardado: la marca solo viaja en esta petición."""
+    if not msgs:
+        return msgs
+    ult = dict(msgs[-1])
+    c = ult.get("content")
+    bloques = [{"type": "text", "text": c}] if isinstance(c, str) else [dict(b) for b in (c or [])]
+    if not bloques:
+        return msgs
+    bloques[-1]["cache_control"] = {"type": "ephemeral"}
+    ult["content"] = bloques
+    return msgs[:-1] + [ult]
+
+
 def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: dict | None) -> tuple[dict, list]:
     """Corre el ciclo de herramientas. Devuelve ({texto, bloques, accion, consultas}, historial)."""
     sesion.reiniciar_turno()
@@ -1073,16 +1120,18 @@ def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: d
     # los bloques de razonamiento firmados de los turnos previos quedarían inválidos.
     sistema = [{"type": "text", "text": system_prompt(sesion.V, sesion.R), "cache_control": {"type": "ephemeral"}}]
     msgs = list(historial)
-    if msgs and msgs[-1].get("role") == "user" and isinstance(msgs[-1].get("content"), str):
-        msgs[-1] = {"role": "user", "content": [
-            {"type": "text", "text": msgs[-1]["content"]},
+    ult = msgs[-1] if msgs else {}
+    c = ult.get("content")
+    if ult.get("role") == "user" and (isinstance(c, str) or (isinstance(c, list) and not any(b.get("type") == "tool_result" for b in c))):
+        bloques = [{"type": "text", "text": c}] if isinstance(c, str) else list(c)
+        msgs[-1] = {"role": "user", "content": bloques + [
             {"type": "text", "text": "[Estado actual del dashboard que ve el usuario]\n" + describir_contexto(contexto, sesion.R)},
         ]}
     textos: list[str] = []
     recuperado = pedido_texto = False
     for _ in range(MAX_PASOS):
         try:
-            resp = cliente.messages.create(model=modelo, max_tokens=16000, system=sistema, tools=HERRAMIENTAS, messages=msgs)
+            resp = cliente.messages.create(model=modelo, max_tokens=16000, system=sistema, tools=HERRAMIENTAS, messages=con_cache(msgs))
         except Exception as e:
             # Conversación heredada de una versión anterior del prompt: se reintenta sin razonamiento
             if not recuperado and "bound to a different conversation" in str(e):

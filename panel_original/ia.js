@@ -30,6 +30,7 @@
     ok: svg('<polyline points="20 6 9 17 4 12"/>'),
     enviar: svg('<line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>'),
     descarga: svg('<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'),
+    clip: svg('<path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>'),
     doc: svg('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>'),
     filtro: svg('<polygon points="22 3 2 3 10 12.5 10 19 14 21 14 12.5 22 3"/>'),
     alerta: svg('<path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'),
@@ -56,8 +57,11 @@
     '<p class="ia-warn" id="ia-warn" hidden></p>' +
     '<div id="ia-msgs" aria-live="polite"></div>' +
     '<div class="ia-ft"><div class="ia-quick" id="ia-quick"></div>' +
-    '<div class="ia-in"><textarea id="ia-txt" rows="1" placeholder="Escríbele a Paula…" aria-label="Escríbele a Paula"></textarea>' +
-    '<div class="ia-bar"><span class="ia-ctx" title="Filtros activos del dashboard">' + IC.filtro + '<span id="ia-ctx"></span></span>' +
+    '<div class="ia-in"><div class="ia-adjs" id="ia-adjs" hidden></div>' +
+    '<textarea id="ia-txt" rows="1" placeholder="Escríbele a Paula…" aria-label="Escríbele a Paula"></textarea>' +
+    '<div class="ia-bar"><button class="ia-clip" id="ia-clip" type="button" title="Adjuntar una imagen (o pégala con Ctrl+V)" aria-label="Adjuntar imagen">' + IC.clip + '</button>' +
+    '<input type="file" id="ia-file" accept="image/png,image/jpeg,image/webp" multiple hidden>' +
+    '<span class="ia-ctx" title="Filtros activos del dashboard">' + IC.filtro + '<span id="ia-ctx"></span></span>' +
     '<span class="ia-kbd" aria-hidden="true"><kbd>Enter</kbd> enviar · <kbd>Shift</kbd>+<kbd>Enter</kbd> línea</span>' +
     '<button class="ia-send" id="ia-send" type="button" title="Enviar" aria-label="Enviar">' + IC.enviar + '</button></div></div>' +
     '<div class="ia-meta"><span id="ia-model">Claude</span></div></div>' +
@@ -233,7 +237,68 @@
   abrir(st.abierto);
   /* El panel se abre y se cierra solo con el botón circular: no se añade nada a la cabecera del dashboard */
 
-  function lleno() { txt.parentNode.classList.toggle('lleno', !!txt.value.trim()); }
+  function lleno() { txt.parentNode.classList.toggle('lleno', !!txt.value.trim() || adjuntos.length > 0); }
+
+  /* ---------- Imágenes adjuntas ----------
+   * Se pegan (Ctrl+V), se arrastran o se eligen con el clip. Antes de enviarlas se reducen en el
+   * navegador: 1568 px de lado para que Paula las lea (y no cobre de más) y una miniatura para el chat. */
+  var adjuntos = [], MAX_ADJ = 3, LADO = 1568, LADO_MINI = 360;
+  var cajaAdj = $('#ia-adjs');
+  function reducir(file, lado, calidad) {
+    return new Promise(function (ok, mal) {
+      var lector = new FileReader();
+      lector.onerror = mal;
+      lector.onload = function () {
+        var img = new Image();
+        img.onerror = mal;
+        img.onload = function () {
+          var k = Math.min(1, lado / Math.max(img.width, img.height));
+          var c = document.createElement('canvas');
+          c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+          var g = c.getContext && c.getContext('2d');
+          if (!g) return ok(lector.result);                     // sin canvas: se envía tal cual
+          g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); // fondo blanco para PNG transparentes
+          g.drawImage(img, 0, 0, c.width, c.height);
+          ok(c.toDataURL('image/jpeg', calidad));
+        };
+        img.src = lector.result;
+      };
+      lector.readAsDataURL(file);
+    });
+  }
+  function pintarAdjuntos() {
+    cajaAdj.replaceChildren();
+    adjuntos.forEach(function (a, i) {
+      var s = document.createElement('span'); s.className = 'ia-adj';
+      s.innerHTML = '<img alt="Imagen adjunta ' + (i + 1) + '"><button type="button" title="Quitar imagen" aria-label="Quitar imagen">' + IC.cerrar + '</button>';
+      s.querySelector('img').src = a.mini;
+      s.querySelector('button').onclick = function () { adjuntos.splice(i, 1); pintarAdjuntos(); lleno(); txt.focus(); };
+      cajaAdj.appendChild(s);
+    });
+    cajaAdj.hidden = !adjuntos.length;
+  }
+  function agregarArchivos(files) {
+    [].slice.call(files || []).filter(function (f) { return f && /^image\/(png|jpe?g|webp|gif)$/.test(f.type); })
+      .slice(0, Math.max(0, MAX_ADJ - adjuntos.length)).forEach(function (f) {
+        Promise.all([reducir(f, LADO, 0.85), reducir(f, LADO_MINI, 0.8)]).then(function (r) {
+          if (adjuntos.length >= MAX_ADJ) return;
+          var tipo = (r[0].match(/^data:(image\/[a-z+]+);/) || [])[1] || 'image/jpeg';
+          adjuntos.push({ media_type: tipo, data: r[0].split(',')[1], mini: r[1] });
+          pintarAdjuntos(); lleno();
+        }).catch(function (e) { console.error('Imagen adjunta', e); });
+      });
+  }
+  txt.addEventListener('paste', function (e) {
+    var it = (e.clipboardData && e.clipboardData.items) || [];
+    var fs = [].filter.call(it, function (x) { return x.kind === 'file'; }).map(function (x) { return x.getAsFile(); }).filter(Boolean);
+    if (fs.length) { e.preventDefault(); agregarArchivos(fs); }
+  });
+  var cajaIn = txt.parentNode;
+  cajaIn.addEventListener('dragover', function (e) { if (e.dataTransfer && [].indexOf.call(e.dataTransfer.types || [], 'Files') >= 0) { e.preventDefault(); cajaIn.classList.add('arrastrando'); } });
+  cajaIn.addEventListener('dragleave', function () { cajaIn.classList.remove('arrastrando'); });
+  cajaIn.addEventListener('drop', function (e) { cajaIn.classList.remove('arrastrando'); if (e.dataTransfer && e.dataTransfer.files.length) { e.preventDefault(); agregarArchivos(e.dataTransfer.files); } });
+  $('#ia-clip').onclick = function () { $('#ia-file').click(); };
+  $('#ia-file').addEventListener('change', function () { agregarArchivos(this.files); this.value = ''; });
   txt.addEventListener('input', function () { txt.style.height = 'auto'; txt.style.height = Math.min(140, txt.scrollHeight) + 'px'; lleno(); });
   txt.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); preguntar(txt.value); } });
   btn.onclick = function () { preguntar(txt.value); };
@@ -254,13 +319,16 @@
   }
   function preguntar(t) {
     t = String(t || '').trim();
-    if (!t || st.busy) return;
+    if ((!t && !adjuntos.length) || st.busy) return;
+    var imgs = adjuntos.slice();
+    if (!t) t = '¿Me explicas lo que se ve en esta imagen del panel?';
     var subir = st.chat.length ? null : medir($('#ia-hcab'));
     if (!st.iaOk) { st.error = 'El asistente no está configurado: falta ANTHROPIC_API_KEY en los Secrets de la app.'; pintar(true); return; }
-    txt.value = ''; txt.style.height = 'auto'; lleno();
-    st.chat = st.chat.concat([{ id: 'local', role: 'user', texto: t }]);
+    txt.value = ''; txt.style.height = 'auto';
+    adjuntos = []; pintarAdjuntos(); lleno();
+    st.chat = st.chat.concat([{ id: 'local', role: 'user', texto: t, imagenes: imgs.map(function (a) { return a.mini; }) }]);
     st.busy = true; st.error = null;
-    st.pending = enviar('preguntar', { texto: t });
+    st.pending = enviar('preguntar', { texto: t, imagenes: imgs });
     pintar(true);
     subirCabeza(subir);
   }
@@ -881,7 +949,16 @@
 
   function mensaje(m) {
     var x = burbuja(m.role);
-    if (m.role === 'user') { x.b.textContent = m.texto; return x.m; }
+    if (m.role === 'user') {
+      var fotos = (m.imagenes || []).filter(function (s) { return /^data:image\//.test(s); });
+      if (fotos.length) {
+        var g = document.createElement('div'); g.className = 'ia-uimgs';
+        fotos.forEach(function (s) { var im = new Image(); im.alt = 'Imagen adjunta'; im.src = s; g.appendChild(im); });
+        x.b.appendChild(g);
+      }
+      var tx = document.createElement('div'); tx.textContent = m.texto; x.b.appendChild(tx);
+      return x.m;
+    }
     x.b.innerHTML = md(m.texto);
 
     // Cada pieza es una fabrica: se construye en el momento de colgarla

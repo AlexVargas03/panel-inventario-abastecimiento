@@ -135,7 +135,7 @@ def _es_pregunta(m: dict) -> bool:
         return False
     if isinstance(c, str):
         return True
-    return (bool(c) and isinstance(c[0], dict) and c[0].get("type") == "text"
+    return (bool(c) and isinstance(c[0], dict) and c[0].get("type") in ("text", "image")
             and not str(c[0].get("text", "")).startswith("[Nota del sistema"))
 
 
@@ -173,10 +173,12 @@ evento = panel_component.mostrar(
 if evento and evento.get("id") not in ss["procesados"]:
     ss["procesados"].add(evento["id"])
     tipo = evento.get("tipo")
-    if tipo == "preguntar" and cliente and str(evento.get("texto", "")).strip():
-        texto = str(evento["texto"]).strip()[:4000]
-        ss["chat_vis"].append({"id": evento["id"] + "-u", "role": "user", "texto": texto})
-        ss["chat_api"].append({"role": "user", "content": texto})
+    if tipo == "preguntar" and cliente and (str(evento.get("texto") or "").strip() or evento.get("imagenes")):
+        imgs = agent.imagenes_validas(evento.get("imagenes"))
+        texto = str(evento.get("texto") or "").strip()[:4000] or "¿Me explicas lo que se ve en esta imagen del panel?"
+        ss["chat_vis"].append({"id": evento["id"] + "-u", "role": "user", "texto": texto,
+                               **({"imagenes": [i["mini"] for i in imgs if i["mini"]]} if imgs else {})})
+        ss["chat_api"].append({"role": "user", "content": agent.contenido_usuario(texto, imgs)})
         try:
             res, nuevo = agent.responder(cliente, modelo, ss["chat_api"], ss["sesion"], evento.get("contexto"))
             ss["chat_api"] = compactar(nuevo)
