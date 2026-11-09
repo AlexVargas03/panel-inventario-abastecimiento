@@ -748,6 +748,11 @@ Tu personalidad:
 - Varía cómo empiezas y cómo cierras; no repitas siempre las mismas fórmulas.
 - Un toque de humor ligero está bien cuando el momento lo permite, nunca con malas noticias. Español neutro con calidez peruana suave, sin jerga cargada y sin emojis.
 - La personalidad va en el tono, no en el relleno: nada de frases vacías como "¡Excelente pregunta!" o "Espero que te sirva" que alargan sin decir nada.
+- Ejemplos del tono (lo que va entre corchetes sale siempre de tus datos, nunca de estos ejemplos):
+  · Usuario: "hola qué tal" → "¡Hola! Todo bien por aquí, revisando los números de la semana. Algo que me llamó la atención: [dato concreto de las Cifras clave]. ¿Lo vemos, o prefieres empezar por otra cosa?" (y botones con sugerir_acciones)
+  · Usuario: "gracias" → "¡Con gusto! Si quieres, seguimos con [siguiente paso lógico de lo que estaban viendo]."
+  · Usuario: "¿cómo van las ventas?" → "Buenas noticias: [conclusión con su cifra]." y debajo 2 o 3 viñetas con el porqué.
+  · Mal, demasiado seco (no lo hagas): "Dime qué quieres mirar primero." o "Dime por dónde quieres empezar."
 
 Cómo trabajar:
 - Nunca inventes cifras: sácalas con las herramientas.
@@ -812,7 +817,7 @@ Cómo conversar (es una conversación seguida, no preguntas sueltas):
 - Recuerda lo ya fijado en la conversación —periodo, proveedor, almacén, pestaña— y no lo vuelvas a preguntar. Si lo cambias, avísalo de pasada: "ahora mirando solo junio…".
 - Al cerrar ofreciendo algo, que sea una propuesta concreta y accionable: lo más probable es que el siguiente mensaje sea el "sí" a eso.
 - No te vuelvas a presentar ni repitas lo que ya dijiste en turnos anteriores.
-- Si el mensaje es ambiguo y el contexto no lo resuelve, haz UNA sola pregunta corta con dos o tres alternativas, en vez de adivinar o de soltar un informe.
+- Si una consulta de datos es ambigua y el contexto no lo resuelve, haz UNA sola pregunta corta con dos o tres alternativas, en vez de adivinar o de soltar un informe. Un saludo, un "gracias" o un "ok" NO son consultas ambiguas: respóndelos como dice "Tu personalidad".
 - Habla de tú, en primera persona y en presente. Eres el asistente del panel, no un informe que se imprime.
 
 Vistas disponibles (DuckDB; códigos como texto con ceros a la izquierda):
@@ -1039,6 +1044,24 @@ def sin_razonamiento(msgs: list) -> list:
     return out
 
 
+CHARLA = re.compile(r"^[\s¡!¿?.,]*(hola+|holi|buen[oa]s?\b|buen d[ií]a|qu[eé] tal|c[oó]mo (est[aá]s|vas|andas|te va)|hey|saludos|"
+                    r"(muchas |mil )?gracias|ok|okey|vale|genial|perfecto|excelente|chao|chau|adi[oó]s|hasta luego|nos vemos)\b", re.I)
+PALABRAS_DATOS = ("venta", "vend", "margen", "stock", "proveedor", "almac", "obsolet", "inventario", "informe", "reporte", "sku",
+                  "producto", "canal", "compra", "mes", "abc", "tienda", "precio", "descuento", "cuánto", "cuanto", "cuál", "cual",
+                  "ahora", "solo", "sólo", "filtra", "muestra", "compara", "dame", "lleva", "reparto", "express", "inmediato",
+                  "alfa", "toru", "top", "junio", "julio", "agosto", "enero", "año")
+NOTA_CHARLA = ("[Nota para ti, el usuario no la ve: este mensaje es un saludo o charla, no una consulta de datos. "
+               "Responde como una persona cálida, en 2 o 3 líneas, siguiendo 'Tu personalidad': devuelve el saludo (o el agradecimiento) "
+               "con naturalidad, di algo breve de ti y engancha con UN dato concreto de las Cifras clave, ofreciéndolo. "
+               "Después añade sugerir_acciones. No respondas solo con una pregunta ni con una lista de opciones.]")
+
+
+def es_charla(texto: str) -> bool:
+    """Saludo, agradecimiento o despedida corta, sin pregunta de datos dentro."""
+    t = str(texto or "").strip().lower()
+    return len(t.split()) <= 8 and bool(CHARLA.search(t)) and not any(k in t for k in PALABRAS_DATOS)
+
+
 def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: dict | None) -> tuple[dict, list]:
     """Corre el ciclo de herramientas. Devuelve ({texto, bloques, accion, consultas}, historial)."""
     sesion.reiniciar_turno()
@@ -1048,10 +1071,11 @@ def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: d
     sistema = [{"type": "text", "text": system_prompt(sesion.V, sesion.R), "cache_control": {"type": "ephemeral"}}]
     msgs = list(historial)
     if msgs and msgs[-1].get("role") == "user" and isinstance(msgs[-1].get("content"), str):
+        pregunta = msgs[-1]["content"]
         msgs[-1] = {"role": "user", "content": [
-            {"type": "text", "text": msgs[-1]["content"]},
+            {"type": "text", "text": pregunta},
             {"type": "text", "text": "[Estado actual del dashboard que ve el usuario]\n" + describir_contexto(contexto, sesion.R)},
-        ]}
+        ] + ([{"type": "text", "text": NOTA_CHARLA}] if es_charla(pregunta) else [])}
     texto = ""
     recuperado = False
     for _ in range(MAX_PASOS):
