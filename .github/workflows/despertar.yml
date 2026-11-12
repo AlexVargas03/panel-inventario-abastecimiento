@@ -1,11 +1,11 @@
 # Despierta el dashboard cada mañana para que los datos de SharePoint ya estén descargados
-# cuando entre el primer usuario. 11:05 UTC = 6:05 a. m. en Lima (Perú no cambia de horario).
+# cuando entre el primer usuario. 14:05 UTC = 9:05 a. m. en Lima (Perú no cambia de horario).
 # GitHub puede retrasar las tareas programadas algunos minutos en horas de mucha carga.
 name: Despertar el dashboard
 
 on:
   schedule:
-    - cron: "5 11 * * *"
+    - cron: "5 14 * * *"
   workflow_dispatch:        # botón "Run workflow" para lanzarlo a mano
 
 permissions:

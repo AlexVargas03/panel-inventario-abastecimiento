@@ -10,7 +10,7 @@ La configuración va en los Secrets de Streamlit, nunca en el código:
     sitio         = "https://empresa.sharepoint.com/sites/Abastecimiento"
     carpeta       = "Dashboard/Datos"          # ruta dentro de la biblioteca
     # biblioteca  = "Documentos"               # opcional; por defecto, la biblioteca principal del sitio
-    # hora_corte  = 6                          # opcional; hora de Lima a la que se refrescan los datos
+    # hora_corte  = 9                          # opcional; hora de Lima a la que se refrescan los datos
 
     [sharepoint.archivos]                      # opcional; solo los que tengan otro nombre
     inventario  = "inventario.xlsx"
