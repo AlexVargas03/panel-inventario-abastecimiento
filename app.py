@@ -168,7 +168,22 @@ if api_key:
 
 # Interruptor manual del asistente: ASISTENTE_ACTIVO = false en los Secrets lo oculta y apaga el chat.
 # Sin cliente, el servidor ignora cualquier pregunta aunque alguien intente enviarla desde el navegador.
-asistente_activo = str(secreto("ASISTENTE_ACTIVO", "true")).strip().lower() not in ("false", "0", "no", "off", "")
+def _interruptor_asistente():
+    """ASISTENTE_ACTIVO en la raíz de los Secrets o, si quedó por error dentro de una sección
+    (por ejemplo debajo de [sharepoint]), ahí mismo."""
+    v = secreto("ASISTENTE_ACTIVO")
+    if v is None:
+        try:
+            for seccion in st.secrets.values():
+                if hasattr(seccion, "get") and seccion.get("ASISTENTE_ACTIVO") is not None:
+                    v = seccion.get("ASISTENTE_ACTIVO")
+                    break
+        except Exception:
+            pass
+    return str("true" if v is None else v).strip().lower() not in ("false", "0", "no", "off", "")
+
+
+asistente_activo = _interruptor_asistente()
 if not asistente_activo:
     cliente = None
 
