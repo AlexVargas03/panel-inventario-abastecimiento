@@ -32,6 +32,8 @@ COLUMNAS = {
     "cc_maestro": ["empresa", "fecha", "id_proceso", "almacen", "desc_proceso", "articulo", "descripcion", "um", "stock", "conteo",
                    "reconteo1", "reconteo2", "diferencia", "costo_unitario", "total", "proveedor", "grupo", "subgrupo", "marca", "nro_ajuste"],
     "cc_causas": ["empresa", "id_proceso", "articulo", "causa", "estado", "observacion"],
+    "cc_historia": ["empresa", "fecha", "id_proceso", "almacen", "desc_proceso", "articulo", "descripcion", "um", "stock", "conteo",
+                    "reconteo1", "reconteo2", "diferencia", "costo_unitario", "total", "proveedor", "grupo", "subgrupo", "marca", "nro_ajuste"],
 }
 # nombre en la página -> nombre del archivo en la app
 ORIGEN = {"almacenes_real": "almacenes", "abc_xyz_nuevo": "abc_xyz"}

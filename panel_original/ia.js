@@ -338,7 +338,7 @@
   /* ---------- Envío a Python ---------- */
   function nuevoId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
   function contexto() {
-    var pg = ['pn', 'po', 'alm', 'pl', 'cc'].find(function (n) { var e = document.getElementById('pg-' + n); return e && !e.hidden; }) || 'pn';
+    var pg = ['pn', 'po', 'alm', 'pl', 'cc', 'sg'].find(function (n) { var e = document.getElementById('pg-' + n); return e && !e.hidden; }) || 'pn';
     var cb = document.querySelector('#pl-crit button[aria-selected="true"]');
     var v = function (id) { var e = document.getElementById(id); return e ? e.value : null; };
     return { params: dash.params(), pestana: pg, criterio_obsoleto: cb ? cb.dataset.c : null, buscar_obsoleto: v('pl-oq') || '',
@@ -938,6 +938,22 @@
           }
         }, 250);
         foco = document.getElementById('pl-otb') || foco;
+      }
+      if (acc.seguimiento) {
+        var sgA = acc.seguimiento;
+        fino(function () {
+          if (sgA.vista) { var bm = document.querySelector('#sg-modes button[data-sgm="' + sgA.vista + '"]'); if (bm && !bm.classList.contains('on')) bm.click(); }
+          setTimeout(function () {
+            if (sgA.empresa) {
+              [].forEach.call(document.querySelectorAll('#pg-sg .cc-seg-eb[data-emp="' + sgA.empresa + '"]'), function (b) { if (b.offsetParent && b.getAttribute('aria-selected') !== 'true') b.click(); });
+            }
+            if (sgA.solo_variacion !== null && sgA.solo_variacion !== undefined) {
+              var cv = document.getElementById('sg-ev-var'); if (cv && cv.checked !== !!sgA.solo_variacion) { cv.checked = !!sgA.solo_variacion; cv.dispatchEvent(new Event('change', { bubbles: true })); }
+            }
+            if (sgA.buscar) { var q = document.getElementById('sg-ev-q'); if (q) { q.value = sgA.buscar; q.dispatchEvent(new Event('input', { bubbles: true })); } }
+          }, 150);
+        }, 250);
+        foco = document.getElementById('pg-sg') || foco;
       }
       if (acc.conteo) {
         // Conteo cíclico: elegir un proceso (clic en su fila) o "todos" (primera tarjeta). Tras pintar la pestaña.

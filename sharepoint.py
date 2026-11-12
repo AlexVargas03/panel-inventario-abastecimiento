@@ -18,6 +18,7 @@ La configuración va en los Secrets de Streamlit, nunca en el código:
     almacenes   = "dashboard_inventarios.xlsx"
     cc_maestro  = "resumen_general_diferencias.csv"   # conteo cíclico, tal como sale del sistema
     cc_causas   = ""                         # vacío = no está en SharePoint (carga manual)
+    cc_historia = ""                         # histórico acumulado del conteo (por ahora desde data/)
     # un Excel con varias hojas: "archivo.xlsx#NombreHoja"
 
 Para probar la conexión desde la carpeta del proyecto (lee .streamlit/secrets.toml):

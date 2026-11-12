@@ -114,6 +114,7 @@ ETIQUETAS = {
     "sku_venta": "Venta por SKU (sku_venta.csv)",
     "cc_maestro": "Conteo cíclico (resumen_general_diferencias.csv)",
     "cc_causas": "Causas del conteo cíclico (cc_causas.csv)",
+    "cc_historia": "Histórico del conteo cíclico (cc_historia.csv)",
 }
 
 subidos = st.session_state.setdefault("subidos", {})

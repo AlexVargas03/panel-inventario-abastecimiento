@@ -30,9 +30,9 @@ MAX_PASOS = 16   # un informe necesita varias consultas
 MAX_FILAS_MODELO = 200
 MAX_FILAS_TABLA = 60
 MES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
-PESTANAS = {"panel": "pn", "politica": "po", "almacen": "alm", "planificacion": "pl", "conteo": "cc"}
+PESTANAS = {"panel": "pn", "politica": "po", "almacen": "alm", "planificacion": "pl", "conteo": "cc", "seguimiento": "sg"}
 PESTANAS_TXT = {"pn": "Panel de control", "po": "Política por segmento", "alm": "Capacidad de almacén", "pl": "Planificación",
-                "cc": "Conteo cíclico"}
+                "cc": "Conteo cíclico", "sg": "Seguimiento de proveedores"}
 
 
 def _norm(s) -> str:
@@ -65,6 +65,17 @@ def _py(v):
 # ----------------------------------------------------------------------------
 # Vistas de negocio (Data Mart en memoria)
 # ----------------------------------------------------------------------------
+def unir_conteo(historia: pd.DataFrame | None, vigente: pd.DataFrame | None) -> pd.DataFrame | None:
+    """Como el dashboard: todo el histórico que no viene en el archivo vigente, más lo vigente."""
+    if historia is None or len(historia) == 0:
+        return vigente
+    if vigente is None or len(vigente) == 0:
+        return historia
+    clave = lambda d: d["empresa"].astype(str) + "|" + d["id_proceso"].astype(str) + "|" + d["almacen"].astype(str) + "|" + d["articulo"].astype(str)
+    nuevos = set(clave(vigente))
+    return pd.concat([historia[~clave(historia).isin(nuevos)], vigente], ignore_index=True)
+
+
 def conteo_ciclico(cc: pd.DataFrame | None) -> pd.DataFrame:
     """Normaliza el conteo como lo hace el dashboard (cc_base): conteo final, diferencia, valor, resultado y prioridad."""
     cols = ["empresa", "fecha", "id_proceso", "almacen", "desc_proceso", "articulo", "descripcion", "um", "stock", "conteo",
@@ -116,7 +127,7 @@ def vistas(ds: dict, R: dict) -> dict[str, tuple[pd.DataFrame, str]]:
         "categoria": sv["sku"].map(info["categoria"]).fillna(""), "ult_venta": sv["ult_venta"], "unidades": sv["unidades"].fillna(0),
         "venta": sv["venta"].fillna(0), "costo_igv": sv["costo_sin_igv"].fillna(0) * calc.IGV})
     productos_venta["margen"] = productos_venta["venta"] - productos_venta["costo_igv"]
-    conteo = conteo_ciclico(ds.get("cc_maestro"))
+    conteo = conteo_ciclico(unir_conteo(ds.get("cc_historia"), ds.get("cc_maestro")))
     causas = ds.get("cc_causas") if ds.get("cc_causas") is not None else pd.DataFrame(columns=["empresa", "id_proceso", "articulo", "causa", "estado", "observacion"])
     return {
         "vw_ventas": (ventas, "Sell out por mes (YYYY-MM), canal, interco (1 = intercompañía), id_proveedor y proveedor: venta (con IGV), costo_igv, margen (venta − costo con IGV), unidades, tickets (que incluyen al proveedor; no sumar entre proveedores) y skus."),
@@ -130,7 +141,7 @@ def vistas(ds: dict, R: dict) -> dict[str, tuple[pd.DataFrame, str]]:
         "vw_abc": (R["abc_seg"], "Productos con stock del archivo ABC-XYZ por empresa (ALFA/TORU): segmento, stock, valor, cajas, m3, medidas."),
         "vw_matriz_abc": (R["matriz_abc"], "Matriz ABC-XYZ por empresa (emp = ALFA, TORU, all) y clase: productos, valor, m3, cajas, sin_medidas, pct_valor, pct_m3 (0–1)."),
         "vw_matriz_clase": (R["matriz_cl"], "Matriz por clase XYZABC del inventario ALFA: productos, valor, pct_valor, m3, pct_m3, cajas."),
-        "vw_conteo": (conteo, "Conteo cíclico, una fila por artículo contado en cada proceso: empresa, fecha, id_proceso, almacen, desc_proceso, articulo, descripcion, um, stock (sistema), conteo, reconteo1, reconteo2, conteo_final (reconteo2 si lo hay, si no reconteo1, si no conteo), diferencia (conteo_final − stock, en uds), costo_unitario, valor (diferencia × costo, S/), resultado (Faltante/Sobrante/Cuadra/Sin stock), prioridad (Alta ≥ 8 uds, Media 3–7, Baja 1–2, '' si cuadra), proveedor, grupo, subgrupo, marca, nro_ajuste."),
+        "vw_conteo": (conteo, "Conteo cíclico con TODO el historial (histórico acumulado más el archivo vigente), una fila por artículo contado en cada proceso: empresa, fecha, id_proceso, almacen, desc_proceso, articulo, descripcion, um, stock (sistema), conteo, reconteo1, reconteo2, conteo_final (reconteo2 si lo hay, si no reconteo1, si no conteo), diferencia (conteo_final − stock, en uds), costo_unitario, valor (diferencia × costo, S/), resultado (Faltante/Sobrante/Cuadra/Sin stock), prioridad (Alta ≥ 8 uds, Media 3–7, Baja 1–2, '' si cuadra), proveedor, grupo, subgrupo, marca, nro_ajuste."),
         "vw_conteo_causas": (causas, "Causas registradas a mano para las diferencias del conteo: empresa, id_proceso, articulo, causa, estado, observacion. Puede estar vacía: entonces todas las diferencias están 'Por analizar'."),
         "vw_almacenes": (R["almacenes"], "Almacenes: id, almacen, capacidad, usado_alfa, usado_toru, usado, libre (m³), pct (0–1), vitrina, uni_alfa, uni_toru, monto_alfa, monto_toru."),
     }
@@ -416,6 +427,11 @@ HERRAMIENTAS = [
             "ordenar_obsoletos": {"type": "object", "description": "Ordena la tabla de Inventario obsoleto",
                                   "properties": {"columna": {"type": "string", "enum": ["valor", "ult_venta", "producto", "proveedor", "sku", "criterio"]},
                                                  "orden": {"type": "string", "enum": ["desc", "asc"]}}},
+            "seguimiento": {"type": "object", "description": "Pestaña Seguimiento de proveedores",
+                            "properties": {"vista": {"type": "string", "enum": ["semana", "dia", "sku"], "description": "Proveedores contados por semana, por día, o evolución por SKU"},
+                                           "empresa": {"type": "string", "enum": ["ALFA", "TORU"]},
+                                           "buscar": {"type": "string", "description": "Vista sku: texto para buscar un producto o proveedor"},
+                                           "solo_variacion": {"type": "boolean", "description": "Vista sku: solo productos cuyo conteo varió"}}},
             "conteo_proceso": {"type": "string", "description": "Conteo cíclico: id_proceso a mostrar (p. ej. '2305') o 'todos' para el total de procesos"},
             "buscar_obsoleto": {"type": "string", "description": "Texto para buscar en la tabla de obsoletos (SKU, producto o proveedor); '' para limpiar"},
             "planificador": {"type": "object", "properties": {"meta_venta_mes": {"type": "number"}, "meses": {"type": "integer"},
@@ -728,6 +744,7 @@ REGLAS = """Reglas del negocio:
 - ABC = importancia por venta acumulada (A hasta 80 %, B hasta 95 %, C el resto); XYZ = estabilidad de la demanda (X estable, Y variable, Z errática). CZ = candidatos a descontinuar.
 - Un almacén con 85 % de uso o más está "por llenarse". Días de inventario: hasta 60 bien, 61–120 atención, más de 120 o sin venta = alto.
 - Obsoleto = descontinuado, clase CZ o sin venta en los 180 días previos al último día del sell out.
+- El conteo cíclico se analiza con todo su historial: el histórico acumulado (procesos que ya no vienen en el archivo de SharePoint) más el archivo vigente; si un proceso viene en ambos, manda el vigente.
 - Conteo cíclico: el conteo final es el segundo reconteo si lo hay; si no, el primero; si no, el conteo. Diferencia = conteo final − stock del sistema (negativa = faltante, positiva = sobrante). Valorización = diferencia × costo unitario. Exactitud en unidades = 1 − Σ|diferencia| ÷ Σ stock; exactitud por artículo = artículos sin diferencia ÷ artículos con stock o conteo (los que están en cero en ambos no cuentan); con tolerancia ±1 ud se perdonan diferencias de una unidad. Prioridad de la diferencia: alta ≥ 8 uds, media 3–7, baja 1–2. Las causas se registran a mano; sin causa, la diferencia está "Por analizar".
 - No hay datos de compras, devoluciones, clientes ni regiones: si te los piden, dilo y ofrece lo más cercano (proveedor, canal, tienda)."""
 
@@ -841,6 +858,7 @@ Cómo trabajar:
   · obsoleto, descontinuados, CZ, productos sin venta, liquidación → pestaña "planificacion" (con criterio_obsoleto; y buscar_obsoleto si hablas de un producto o proveedor concreto).
   · compra sugerida, meta de venta, días de cierre, cuánto pedir → pestaña "planificacion" (con planificador).
   · además del filtro, abre el detalle exacto cuando la pregunta es concreta: margen por mes → vista_ventas 'margen'; un segmento ABC-XYZ (AX, CZ…) → abc_segmento, que abre su cartilla con el detalle; un almacén concreto → croquis_almacen; el descuento de un proveedor o producto → simulador (además de calcularlo con simular_descuento); los obsoletos de más valor o más antiguos → ordenar_obsoletos.
+  · qué proveedores se contaron y cuándo, frecuencia o cobertura del conteo, proveedores sin conteo vigente, cómo evolucionó un producto entre conteos → pestaña "seguimiento" (con seguimiento: vista semana, dia o sku).
   · conteo cíclico, diferencias de inventario, faltantes y sobrantes, exactitud del conteo, recuentos, ajustes, causas → pestaña "conteo".
 - No lo muevas si ya está donde toca: el estado actual lo tienes más abajo. Y si la pregunta no tiene reflejo en el panel, responde sin tocarlo.
 - Cuando lo muevas, dilo de pasada en media frase ("te lo dejo abierto en capacidad de almacén"), no en una viñeta aparte: el panel ya enseña un aviso con lo que cambiaste.
@@ -877,7 +895,7 @@ Cómo conversar (es una conversación seguida, no preguntas sueltas):
 - Habla de tú, en primera persona y en presente. Eres AlfaCorp Bot, no un informe que se imprime.
 
 Mapa del dashboard (para reconocer lo que el usuario ve o te manda en una captura):
-- Cabecera roja con el título y 5 pestañas: Panel de control, Política por segmento, Capacidad de almacén, Planificación y Conteo cíclico.
+- Cabecera roja con el título y 6 pestañas: Panel de control, Política por segmento, Capacidad de almacén, Planificación, Conteo cíclico y Seguimiento de proveedores.
 - Panel de control:
   · Fila de 6 tarjetas: Valor del stock (Stock Valorizado a costo sin IGV), Espacio ocupado (m³ = cajas × m³ del MasterPack), Productos con stock, Cajas en almacén (stock ÷ MasterPack), Candidatos a descontinuar CZ (valor y % del stock) y Descontinuados con stock.
   · Barra "Sell out": periodo (todo, un mes o un rango con el deslizador ene–sep), buscador de proveedor y "Quitar filtros".
@@ -896,6 +914,9 @@ Mapa del dashboard (para reconocer lo que el usuario ve o te manda en una captur
   · "Estadística del conteo": exactitud por artículo con intervalo de confianza del 95 %, exactitud con tolerancia ±1 ud, error absoluto medio, sesgo del conteo (si tiende a contar de más o de menos), diferencias atípicas y correlación de Spearman entre stock y error; y una tabla de estadísticos descriptivos con cómo leer cada uno.
   · "Todos los artículos del conteo" con su resultado (Faltante, Sobrante, Cuadra, Sin stock) y "Plan de acción por artículo" con prioridad (alta ≥ 8 uds, media 3–7, baja 1–2), estado y acción sugerida (recontar, o barrido de ubicaciones y revisar despachos si es grande).
   · "Dónde se concentra el valor": top 5 y valor de diferencias por proveedor.
+- Seguimiento de proveedores: usa todo el historial del conteo cíclico (histórico acumulado más el archivo vigente). Tres vistas con botones:
+  · "Proveedores · por semana" y "Proveedores · por día": una grilla de proveedores por fecha con selector de empresa (ALFA / TORU). Colores: contado esa semana (o día), conteo vigente, sin conteo vigente. Sirve para ver qué proveedores se están contando y cuáles llevan tiempo sin conteo.
+  · "Evolución por SKU": productos contados 2 o más veces, con su conteo y diferencia en cada proceso; se puede buscar, ordenar por cualquier columna y marcar "Solo con variación".
 - A la derecha está tu panel de chat; la tarjeta "Análisis de IA" que a veces aparece arriba del dashboard la pones tú con generate_dynamic_chart.
 
 Vistas disponibles (DuckDB; códigos como texto con ceros a la izquierda):
@@ -1127,6 +1148,13 @@ class Sesion:
             acc["orden_obsoletos"] = {"columna": o["columna"], "orden": "asc" if o.get("orden") == "asc" else "desc"}
             acc.setdefault("pestana", "pl")
             desc.append(f"obsoletos ordenados por {o['columna']}")
+        if isinstance(a.get("seguimiento"), dict) and a["seguimiento"]:
+            sg = a["seguimiento"]
+            acc["seguimiento"] = {"vista": {"semana": "sem", "dia": "dia", "sku": "sku"}.get(sg.get("vista"), None),
+                                  "empresa": sg.get("empresa") if sg.get("empresa") in ("ALFA", "TORU") else None,
+                                  "buscar": sg.get("buscar"), "solo_variacion": sg.get("solo_variacion")}
+            acc.setdefault("pestana", "sg")
+            desc.append("seguimiento de proveedores" + (f" · {sg.get('vista')}" if sg.get("vista") else "") + (f" · {sg.get('empresa')}" if sg.get("empresa") else ""))
         if a.get("conteo_proceso"):
             proc = str(a["conteo_proceso"]).strip()
             acc["conteo"] = {"proceso": "todos" if proc.lower() in ("todos", "all", "total") else proc}
