@@ -171,15 +171,25 @@ if api_key:
 def _interruptor_asistente():
     """ASISTENTE_ACTIVO en la raíz de los Secrets o, si quedó por error dentro de una sección
     (por ejemplo debajo de [sharepoint]), ahí mismo."""
+    def buscar(nodo, prof=0):
+        # recorre secciones y subsecciones (p. ej. [sharepoint.archivos]) hasta 4 niveles
+        if prof > 4 or not hasattr(nodo, "items"):
+            return None
+        for k, val in nodo.items():
+            if k == "ASISTENTE_ACTIVO":
+                return val
+        for k, val in nodo.items():
+            r = buscar(val, prof + 1)
+            if r is not None:
+                return r
+        return None
+
     v = secreto("ASISTENTE_ACTIVO")
     if v is None:
         try:
-            for seccion in st.secrets.values():
-                if hasattr(seccion, "get") and seccion.get("ASISTENTE_ACTIVO") is not None:
-                    v = seccion.get("ASISTENTE_ACTIVO")
-                    break
+            v = buscar(st.secrets)
         except Exception:
-            pass
+            v = None
     return str("true" if v is None else v).strip().lower() not in ("false", "0", "no", "off", "")
 
 
