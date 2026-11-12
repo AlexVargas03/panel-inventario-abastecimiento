@@ -1140,6 +1140,10 @@
 
   /* ---------- Lo que manda Python ---------- */
   window.iaRender = function (a) {
+    // Interruptor ASISTENTE_ACTIVO de los Secrets: apagado, no se ve ni el círculo ni el panel
+    var oculto = a.asistente === false;
+    document.body.classList.toggle('ia-oculto', oculto);
+    if (oculto) { if (st.abierto) abrir(false); return; }
     st.iaOk = !!a.ia_ok;
     $('#ia-model').textContent = a.modelo ? 'Claude · ' + a.modelo : 'Claude';
     var w = $('#ia-warn');

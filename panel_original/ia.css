@@ -670,3 +670,6 @@ body.ia-salta :is(.ia-cara,.ia-cabeza){animation:ia-salto .55s var(--ia-ease)}
 @media (hover:hover) and (pointer:fine){.ia-cabeza[role="button"]:hover{scale:1.05}}
 .ia-cabeza[role="button"]{transition:scale .18s var(--ia-ease),rotate .3s var(--ia-ease)}
 @media (prefers-reduced-motion:reduce){.ia-sacude{animation:none}}
+
+/* ---------- Asistente apagado (ASISTENTE_ACTIVO = false en los Secrets) ---------- */
+body.ia-oculto #ia-handle,body.ia-oculto #ia-panel,body.ia-oculto .ia-lat,body.ia-oculto #ia-card,body.ia-oculto .ia-vuela{display:none!important}

@@ -77,7 +77,7 @@ cfg_sp = sharepoint.a_dict(secreto("sharepoint") or {})
 info_sp, corte = None, None
 ds = dict(datos_por_defecto())
 if sharepoint.configurado(cfg_sp):
-    hora_corte = int(cfg_sp.get("hora_corte", 6))
+    hora_corte = int(cfg_sp.get("hora_corte", 9))
     corte = corte_diario(hora_corte)
     huella = repr(sorted((k, v) for k, v in cfg_sp.items() if k != "client_secret"))   # cambia si cambia sitio, carpeta o archivos
     ds_sp, info_sp = datos_sharepoint(corte, huella, cfg_sp)
@@ -166,6 +166,12 @@ if api_key:
 
     cliente = anthropic.Anthropic(api_key=api_key)
 
+# Interruptor manual del asistente: ASISTENTE_ACTIVO = false en los Secrets lo oculta y apaga el chat.
+# Sin cliente, el servidor ignora cualquier pregunta aunque alguien intente enviarla desde el navegador.
+asistente_activo = str(secreto("ASISTENTE_ACTIVO", "true")).strip().lower() not in ("false", "0", "no", "off", "")
+if not asistente_activo:
+    cliente = None
+
 ss = st.session_state
 ss.setdefault("chat_api", [])       # historial en formato de la API de Anthropic (memoria de la conversación)
 ss.setdefault("chat_vis", [])       # lo que se muestra en el panel (texto, tablas, gráficos, acciones)
@@ -220,6 +226,7 @@ evento = panel_component.mostrar(
     chat=ss["chat_vis"], insights=ss["insights"], ia_ok=bool(cliente), modelo=modelo if cliente else "",
     accion=ss["accion"], respondido=ss["respondido"], reiniciado=ss.pop("reiniciado", False),
     pedir_insights=bool(cliente) and not ss.get("insights_ia_ok"),
+    asistente=asistente_activo,
 )
 
 if evento and evento.get("id") not in ss["procesados"]:
