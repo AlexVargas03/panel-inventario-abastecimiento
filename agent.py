@@ -65,6 +65,38 @@ def _py(v):
 # ----------------------------------------------------------------------------
 # Vistas de negocio (Data Mart en memoria)
 # ----------------------------------------------------------------------------
+def ventas_por_canal(vc: pd.DataFrame | None) -> pd.DataFrame:
+    """dashboard_evolucion_ventas con nombres en minúscula y el mes como YYYY-MM."""
+    cols = ["empresa", "mes", "anio", "inmediato", "por_recoger", "express", "reparto", "web", "otros", "venta_total", "costo_total",
+            "margen", "margen_pct", "cuota", "diferencia", "cumplimiento", "estado"]
+    if vc is None or len(vc) == 0:
+        return pd.DataFrame(columns=cols)
+    d = vc.rename(columns=lambda c: str(c).strip().lower())
+    d = d.rename(columns={"porrecoger": "por_recoger", "ventatotal": "venta_total", "costototal": "costo_total", "margenpct": "margen_pct",
+                          "metamensual": "cuota", "pedidoexpress": "express", "sincanal": "otros"})
+    d = d[d["empresa"].astype(str).str.strip() != ""].copy()
+    d["empresa"] = d["empresa"].astype(str).str.strip().str.upper()
+    anio = pd.to_numeric(d["anio"], errors="coerce")
+    mes = pd.to_numeric(d["mes"], errors="coerce")
+    d = d[anio.notna() & mes.notna()].copy()
+    d["anio"] = anio[d.index].astype(int)
+    d["mes"] = d["anio"].astype(str) + "-" + mes[d.index].astype(int).astype(str).str.zfill(2)
+    for c in cols:
+        if c not in d.columns:
+            d[c] = None
+    for c in cols[3:-1]:
+        d[c] = pd.to_numeric(d[c], errors="coerce")
+    return d[cols].sort_values(["mes", "empresa"]).reset_index(drop=True)
+
+
+def meses_panel(R: dict, V: dict) -> list[str]:
+    """Meses que ofrece el filtro de periodo del panel (los de Ventas por mes; si no hay, los del sell out)."""
+    vc = V.get("vw_ventas_canal", (None,))[0]
+    if vc is not None and len(vc):
+        return sorted(vc["mes"].unique())
+    return list(R["meses"])
+
+
 def unir_conteo(historia: pd.DataFrame | None, vigente: pd.DataFrame | None) -> pd.DataFrame | None:
     """Como el dashboard: todo el histórico que no viene en el archivo vigente, más lo vigente."""
     if historia is None or len(historia) == 0:
@@ -128,6 +160,11 @@ def vistas(ds: dict, R: dict) -> dict[str, tuple[pd.DataFrame, str]]:
         "venta": sv["venta"].fillna(0), "costo_igv": sv["costo_sin_igv"].fillna(0) * calc.IGV})
     productos_venta["margen"] = productos_venta["venta"] - productos_venta["costo_igv"]
     conteo = conteo_ciclico(unir_conteo(ds.get("cc_historia"), ds.get("cc_maestro")))
+    ventas_canal = ventas_por_canal(ds.get("ventas_canal"))
+    ab = ds["abc_xyz"]
+    abc_venta = pd.DataFrame({"empresa": ab["empresa"].replace("", "ALFA").str.upper(), "sku": ab["producto_id"].str.strip(), "producto": ab["producto"],
+                              "categoria": ab.get("categoria", ""), "segmento": ab["segmento"].replace("", "SC"), "stock": ab["stock"], "valor": ab["valor"],
+                              "venta_mes": ab["venta_mes"] if "venta_mes" in ab else np.nan, "pct_venta": ab["pct_venta"] if "pct_venta" in ab else np.nan})
     causas = ds.get("cc_causas") if ds.get("cc_causas") is not None else pd.DataFrame(columns=["empresa", "id_proceso", "articulo", "causa", "estado", "observacion"])
     return {
         "vw_ventas": (ventas, "Sell out por mes (YYYY-MM), canal, interco (1 = intercompañía), id_proveedor y proveedor: venta (con IGV), costo_igv, margen (venta − costo con IGV), unidades, tickets (que incluyen al proveedor; no sumar entre proveedores) y skus."),
@@ -139,8 +176,10 @@ def vistas(ds: dict, R: dict) -> dict[str, tuple[pd.DataFrame, str]]:
         "vw_obsoleto": (R["pl_obs"], "Inventario obsoleto ALFA: sku, producto, proveedor, valor, m3, ult_venta, criterio, desc, cz, sinventa (1/0)."),
         "vw_proveedor_inventario": (R["pl_prov"], "Por proveedor: inventario (valor), m3, costo_dia (costo de venta diario sin IGV tienda 01 últimos 3 meses), dias (días de inventario; NULL = sin venta), venta, margen (0–1)."),
         "vw_abc": (R["abc_seg"], "Productos con stock del archivo ABC-XYZ por empresa (ALFA/TORU): segmento, stock, valor, cajas, m3, medidas."),
+        "vw_abc_venta": (abc_venta, "Todos los productos del archivo ABC-XYZ (con o sin stock) por empresa: sku, producto, categoria, segmento, stock, valor, venta_mes (venta promedio mensual) y pct_venta (participación en la venta de su empresa, 0–1). Es la base del '% de venta' de las cartillas ABC-XYZ: % de venta de un segmento = SUM(venta_mes) del segmento ÷ SUM(venta_mes) de la empresa."),
         "vw_matriz_abc": (R["matriz_abc"], "Matriz ABC-XYZ por empresa (emp = ALFA, TORU, all) y clase: productos, valor, m3, cajas, sin_medidas, pct_valor, pct_m3 (0–1)."),
         "vw_matriz_clase": (R["matriz_cl"], "Matriz por clase XYZABC del inventario ALFA: productos, valor, pct_valor, m3, pct_m3, cajas."),
+        "vw_ventas_canal": (ventas_canal, "Venta mensual por empresa (ALFA, TORU; Alfa Corp = la suma de las dos) desde 2021, de dashboard_evolucion_ventas (es la fuente del gráfico 'Ventas por mes' del Panel de control): mes (YYYY-MM), anio, venta por canal (inmediato, por_recoger, express, reparto, web, otros; en el gráfico Tiendas = inmediato + por_recoger + express, Distribución = reparto, E-commerce = web), venta_total, costo_total, margen, margen_pct (en %, 0–100), cuota (meta mensual, solo desde 2026; NULL = sin meta), diferencia (venta − cuota), cumplimiento (%) y estado. Úsala para ventas por año, por canal, contra cuota o anteriores a 2026; vw_ventas solo cubre ene–sep 2026 pero tiene proveedores, tickets y unidades."),
         "vw_conteo": (conteo, "Conteo cíclico con TODO el historial (histórico acumulado más el archivo vigente), una fila por artículo contado en cada proceso: empresa, fecha, id_proceso, almacen, desc_proceso, articulo, descripcion, um, stock (sistema), conteo, reconteo1, reconteo2, conteo_final (reconteo2 si lo hay, si no reconteo1, si no conteo), diferencia (conteo_final − stock, en uds), costo_unitario, valor (diferencia × costo, S/), resultado (Faltante/Sobrante/Cuadra/Sin stock), prioridad (Alta ≥ 8 uds, Media 3–7, Baja 1–2, '' si cuadra), proveedor, grupo, subgrupo, marca, nro_ajuste."),
         "vw_conteo_causas": (causas, "Causas registradas a mano para las diferencias del conteo: empresa, id_proceso, articulo, causa, estado, observacion. Puede estar vacía: entonces todas las diferencias están 'Por analizar'."),
         "vw_almacenes": (R["almacenes"], "Almacenes: id, almacen, capacidad, usado_alfa, usado_toru, usado, libre (m³), pct (0–1), vitrina, uni_alfa, uni_toru, monto_alfa, monto_toru."),
@@ -417,7 +456,10 @@ HERRAMIENTAS = [
             "top_proveedores": {"type": "integer", "enum": [10, 20, 50, 0]},
             "empresa_abc": {"type": "string", "enum": ["ALFA", "TORU", "all"]},
             "criterio_obsoleto": {"type": "string", "enum": ["all", "desc", "cz", "sinventa"]},
-            "vista_ventas": {"type": "string", "enum": ["venta", "margen"], "description": "Gráfico 'Ventas por mes' del Panel de control: 'venta' (S/) o 'margen' (margen bruto % por mes)"},
+            "ventas": {"type": "object", "description": "Gráfico 'Ventas por mes' del Panel de control",
+                       "properties": {"empresa": {"type": "string", "enum": ["ALL", "ALFA", "TORU"], "description": "ALL = Alfa Corp (ALFA + TORU)"},
+                                      "vista": {"type": "string", "enum": ["total", "canal"], "description": "Barras de venta total con la cuota, o apiladas por canal"},
+                                      "mes": {"type": "string", "description": "YYYY-MM: voltea la cartilla al detalle de ese mes (participación por canal y resumen). Ajusta el periodo a ese año si hace falta. 'cerrar' vuelve al gráfico"}}},
             "abc_segmento": {"type": "string", "enum": ["AX", "AY", "AZ", "BX", "BY", "BZ", "CX", "CY", "CZ", "cerrar"], "description": "Abre el detalle de una cartilla de la matriz ABC-XYZ del Panel de control (productos, cajas, valor, % del valor, espacio, % del espacio, valor por m³) para la empresa de empresa_abc; 'cerrar' lo cierra"},
             "croquis_almacen": {"type": "string", "description": "Abre el croquis de un almacén por su id ('001', '012', '013', '020'); 'cerrar' lo cierra"},
             "simulador": {"type": "object", "description": "Carga el Simulador de descuento de Planificación para que el usuario lo vea",
@@ -752,7 +794,7 @@ REGLAS = """Reglas del negocio:
 # ----------------------------------------------------------------------------
 # Contexto del dashboard
 # ----------------------------------------------------------------------------
-def describir_contexto(ctx: dict | None, R: dict) -> str:
+def describir_contexto(ctx: dict | None, R: dict, meses_p: list[str] | None = None) -> str:
     if not ctx:
         return "El usuario aún no movió filtros: el dashboard está en Panel de control, todo el periodo, todos los proveedores, matriz ABC de ALFA."
     p = ctx.get("params") or {}
@@ -764,11 +806,15 @@ def describir_contexto(ctx: dict | None, R: dict) -> str:
     prov = nombres.get(prov_id, prov_id) if prov_id else "todos"
     lineas = [
         f"- Pestaña visible: {PESTANAS_TXT.get(ctx.get('pestana'), ctx.get('pestana') or 'Panel de control')}",
-        f"- Periodo del sell out: {periodo} (datos de {mes_txt(meses[0])} a {mes_txt(meses[-1])})",
+        f"- Periodo del panel: {periodo} (Ventas por mes tiene de {mes_txt((meses_p or meses)[0])} a {mes_txt((meses_p or meses)[-1])}; el sell out por proveedor, de {mes_txt(meses[0])} a {mes_txt(meses[-1])})",
         f"- Proveedor filtrado en ventas: {prov}",
         f"- Top de proveedores mostrado: {p.get('so_n') or 10}",
         f"- Empresa en la matriz ABC-XYZ: {p.get('abc_emp') or 'ALFA'}",
     ]
+    vn = ctx.get("ventas") or {}
+    if vn:
+        lineas.append(f"- Ventas por mes: empresa {({'ALL': 'Alfa Corp (ALFA + TORU)'}).get(vn.get('empresa'), vn.get('empresa') or 'Alfa Corp')}, vista {'por canal' if vn.get('vista') == 'canal' else 'total con cuota'}"
+                      + (f", cartilla volteada al detalle de {mes_txt(vn['mes'])}" if vn.get("mes") else ""))
     if ctx.get("criterio_obsoleto"):
         lineas.append(f"- Filtro de obsoletos: {ctx['criterio_obsoleto']}" + (f", búsqueda '{ctx['buscar_obsoleto']}'" if ctx.get("buscar_obsoleto") else ""))
     if ctx.get("planificador"):
@@ -852,12 +898,12 @@ Cómo trabajar:
 - Cuando haya siguientes pasos claros, ponlos con sugerir_acciones (1 a 3 botones) en vez de escribirlos. Cada pregunta del botón tiene que entenderse sola, con su periodo, proveedor o producto. En ese caso no cierres además con una propuesta en el texto.
 - Mueve el dashboard por tu cuenta, sin esperar a que te lo pidan. Si lo que respondes se puede ver ahí, llévalo tú con controlar_dashboard en el mismo turno. Que el usuario tenga que pedírtelo aparte es un fallo tuyo.
 - Qué vista corresponde a cada tema:
-  · venta, sell out, proveedores, margen por mes, tickets, unidades → pestaña "panel" (ajusta además periodo_desde/periodo_hasta, proveedor o top_proveedores según lo que te pregunten).
+  · venta, sell out, cuota o meta, ventas por canal o por año, proveedores, margen, tickets, unidades → pestaña "panel" (ajusta además periodo_desde/periodo_hasta, proveedor o top_proveedores según lo que te pregunten).
   · ABC-XYZ, segmentos, clases A/B/C o X/Y/Z, comparar ALFA con TORU → pestaña "politica" (con empresa_abc).
   · almacenes, capacidad, metros cúbicos, espacio libre, ocupación, redistribuir stock → pestaña "almacen".
   · obsoleto, descontinuados, CZ, productos sin venta, liquidación → pestaña "planificacion" (con criterio_obsoleto; y buscar_obsoleto si hablas de un producto o proveedor concreto).
   · compra sugerida, meta de venta, días de cierre, cuánto pedir → pestaña "planificacion" (con planificador).
-  · además del filtro, abre el detalle exacto cuando la pregunta es concreta: margen por mes → vista_ventas 'margen'; un segmento ABC-XYZ (AX, CZ…) → abc_segmento, que abre su cartilla con el detalle; un almacén concreto → croquis_almacen; el descuento de un proveedor o producto → simulador (además de calcularlo con simular_descuento); los obsoletos de más valor o más antiguos → ordenar_obsoletos.
+  · además del filtro, abre el detalle exacto cuando la pregunta es concreta: ventas de ALFA o de TORU → ventas con empresa; venta por canal → ventas con vista 'canal'; un mes concreto (cuánto se vendió, si llegó a la cuota) → ventas con mes, que voltea la cartilla a su detalle; un segmento ABC-XYZ (AX, CZ…) → abc_segmento, que abre su cartilla con el detalle; un almacén concreto → croquis_almacen; el descuento de un proveedor o producto → simulador (además de calcularlo con simular_descuento); los obsoletos de más valor o más antiguos → ordenar_obsoletos.
   · qué proveedores se contaron y cuándo, frecuencia o cobertura del conteo, proveedores sin conteo vigente, cómo evolucionó un producto entre conteos → pestaña "seguimiento" (con seguimiento: vista semana, dia o sku).
   · conteo cíclico, diferencias de inventario, faltantes y sobrantes, exactitud del conteo, recuentos, ajustes, causas → pestaña "conteo".
 - No lo muevas si ya está donde toca: el estado actual lo tienes más abajo. Y si la pregunta no tiene reflejo en el panel, responde sin tocarlo.
@@ -898,11 +944,11 @@ Mapa del dashboard (para reconocer lo que el usuario ve o te manda en una captur
 - Cabecera roja con el título y 6 pestañas: Panel de control, Política por segmento, Capacidad de almacén, Planificación, Conteo cíclico y Seguimiento de proveedores.
 - Panel de control:
   · Fila de 6 tarjetas: Valor del stock (Stock Valorizado a costo sin IGV), Espacio ocupado (m³ = cajas × m³ del MasterPack), Productos con stock, Cajas en almacén (stock ÷ MasterPack), Candidatos a descontinuar CZ (valor y % del stock) y Descontinuados con stock.
-  · Barra "Sell out": periodo (todo, un mes o un rango con el deslizador ene–sep), buscador de proveedor y "Quitar filtros".
-  · "Ventas por mes": botones Venta S/ y Margen %; cuatro cifras (Venta con su promedio por mes, Margen bruto en % y en soles, Unidades, Ticket promedio de boletas y facturas) y un gráfico de barras azules de la venta mensual con IGV. Las barras oscuras son los meses dentro del periodo filtrado; las claras quedan fuera. Con "Margen %" muestra el margen bruto % por mes.
+  · Barra "Periodo": año con flechas ‹ › (o "Todos los años") y un calendario para elegir un rango de meses; buscador de proveedor y "Quitar filtros". Los meses van desde 2021 (los de Ventas por mes); el sell out por proveedor solo tiene ene–sep 2026.
+  · "Ventas por mes" (fuente dashboard_evolucion_ventas, vista vw_ventas_canal): selector de empresa Alfa Corp (ALFA + TORU) / ALFA / TORU; cuatro cuadros: Venta total, Diferencia contra cuota, Meses que alcanzaron la cuota y Mes en curso. Gráfico de barras de la venta por mes con la cuota de cada mes (desde 2026; los meses que alcanzaron la cuota y los que no se distinguen por color); con más de 24 meses en el periodo muestra barras por año (clic en un año lo abre por meses). "↻ Ver por canal" apila las barras por canal (Tiendas = Inmediato + Por recoger + Express, Distribución = Reparto, E-commerce = Web, Otros) y "↻ Ver total" vuelve. Un clic en una barra voltea la cartilla al detalle del mes: participación por canal y resumen, con flechas para pasar de mes y "← Volver al gráfico".
   · "Capacidad de almacén": capacidad total, usado, libre y % de uso global, y una tabla por almacén (capacidad, m³ de ALFA y de TORU, libre, % de uso) con una barra: azul por debajo de 85 %, roja desde 85 % (por llenarse). El botón ▤ abre el croquis del almacén.
   · "Venta y margen por proveedor": ranking (Top 10/20/50) con venta, barra, participación y margen (verde positivo, rojo negativo); un clic en una fila filtra el panel por ese proveedor. La vista "Compras" está vacía porque no hay datos de compras.
-  · "Inventario por segmento ABC-XYZ": matriz de 3 × 3 de cartillas (botones) que al pulsarse abren un recuadro con el detalle del segmento: productos, cajas, valor, % del valor, espacio, % del espacio y valor por m³; filas A, B, C; filas A, B, C = importancia por venta (A la que más vende) y columnas X, Y, Z = estabilidad de la demanda (X estable, Z errática). Cada celda muestra el valor del stock en S/, su % del valor y el espacio; el color distingue la prioridad del segmento. Selector de empresa ALFA / TORU / Todos (en el archivo TORU repite las cifras de ALFA).
+  · "Inventario por segmento ABC-XYZ": cada cartilla muestra además el Stock valorizado y el % de la venta del segmento (venta_mes / pct_venta del archivo ABC-XYZ). Matriz de 3 × 3 de cartillas (botones) que al pulsarse abren un recuadro con el detalle del segmento: productos, cajas, valor, % del valor, espacio, % del espacio y valor por m³; filas A, B, C; filas A, B, C = importancia por venta (A la que más vende) y columnas X, Y, Z = estabilidad de la demanda (X estable, Z errática). Cada celda muestra el valor del stock en S/, su % del valor y el espacio; el color distingue la prioridad del segmento. Selector de empresa ALFA / TORU / Todos (en el archivo TORU repite las cifras de ALFA).
 - Política por segmento: explica cómo se clasifica (ABC por venta acumulada: A hasta 80 %, B hasta 95 %, C el resto; XYZ por variabilidad mensual) y una tabla por segmento con su significado, la política recomendada, productos, valor, % del valor, espacio, % del espacio y cajas. AX = prioridad máxima; CZ = candidatos a descontinuar.
 - Capacidad de almacén: el detalle de cada almacén en m³ (capacidad, uso de ALFA y TORU, libre) y su croquis.
 - Planificación: "Inventario obsoleto" (criterios: descontinuado, CZ o sin venta en 180 días; un producto puede cumplir varios; tabla de productos, CSV y clic para simular su descuento), "Días de inventario por proveedor" (verde hasta 60 días, ámbar de 61 a 120, rojo más de 120 o sin venta en 3 meses), "Simulador de descuento" (venta extra necesaria = descuento ÷ (margen − descuento)) y "Planificador de compra y espacio" (compra sugerida y si cabe en los m³ libres).
@@ -946,6 +992,7 @@ class Sesion:
         self.con.execute("SET enable_external_access = false")
         self.con.execute("SET lock_configuration = true")
         self.nombres_prov = R["so_base"].drop_duplicates("id")[["id", "proveedor"]]
+        self.ctx_params = {}
         self.reiniciar_turno()
 
     def reiniciar_turno(self):
@@ -1079,7 +1126,7 @@ class Sesion:
 
     def _controlar(self, a: dict) -> str:
         acc, desc, params = self.accion, [], {}
-        meses = self.R["meses"]
+        meses = meses_panel(self.R, self.V)
         if a.get("limpiar_filtros"):
             acc["reset"] = True
             desc.append("filtros del sell out reiniciados")
@@ -1094,7 +1141,7 @@ class Sesion:
             h = (a.get("periodo_hasta") or d)[:7]
             d, h = min(d, h), max(d, h)
             if d not in meses or h not in meses:
-                return f"Error: el sell out solo tiene meses de {meses[0]} a {meses[-1]}."
+                return f"Error: el periodo del panel solo tiene meses de {meses[0]} a {meses[-1]}."
             if d == meses[0] and h == meses[-1]:
                 params.update({"so_d": None, "so_h": None})
             else:
@@ -1114,10 +1161,27 @@ class Sesion:
             acc["obsoleto"] = {"criterio": a.get("criterio_obsoleto"), "buscar": a.get("buscar_obsoleto")}
             acc.setdefault("pestana", "pl")
             desc.append("filtro de obsoletos " + (a.get("criterio_obsoleto") or "") + (f" «{a['buscar_obsoleto']}»" if a.get("buscar_obsoleto") else ""))
-        if a.get("vista_ventas") in ("venta", "margen"):
-            acc["vista_ventas"] = a["vista_ventas"]
+        if isinstance(a.get("ventas"), dict) and a["ventas"]:
+            vn = a["ventas"]
+            emp = str(vn.get("empresa") or "").upper() or None
+            emp = {"ALFACORP": "ALL", "ALFA CORP": "ALL", "TODAS": "ALL"}.get(emp, emp)
+            mes_v = str(vn.get("mes") or "").strip()[:7] or None
+            if mes_v and mes_v.lower() != "cerrar":
+                if mes_v not in meses:
+                    return f"Error: Ventas por mes solo tiene meses de {meses[0]} a {meses[-1]}."
+                # el detalle de un mes solo existe cuando el gráfico va por meses (24 meses o menos): se filtra ese año
+                d0, h0 = params.get("so_d", self.ctx_params.get("so_d")), params.get("so_h", self.ctx_params.get("so_h"))
+                if not (d0 and h0 and d0 <= mes_v <= h0 and len([m for m in meses if d0 <= m <= h0]) <= 24):
+                    del_anio = [m for m in meses if m[:4] == mes_v[:4]]
+                    params.update({"so_d": del_anio[0], "so_h": del_anio[-1]})
+                    desc.append(f"periodo {mes_v[:4]}")
+            elif mes_v:
+                mes_v = "cerrar"
+            acc["ventas"] = {"empresa": emp if emp in ("ALL", "ALFA", "TORU") else None,
+                             "vista": vn.get("vista") if vn.get("vista") in ("total", "canal") else None, "mes": mes_v}
             acc.setdefault("pestana", "pn")
-            desc.append("ventas por mes en " + ("margen %" if a["vista_ventas"] == "margen" else "soles"))
+            desc.append("ventas por mes" + (f" · {'Alfa Corp' if emp == 'ALL' else emp}" if emp in ("ALL", "ALFA", "TORU") else "")
+                        + (" · por canal" if vn.get("vista") == "canal" else "") + (f" · detalle de {mes_txt(mes_v)}" if mes_v and mes_v != "cerrar" else ""))
         if a.get("abc_segmento"):
             seg = str(a["abc_segmento"]).strip().upper()
             seg = "cerrar" if seg == "CERRAR" else seg
@@ -1251,6 +1315,7 @@ def con_cache(msgs: list) -> list:
 def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: dict | None) -> tuple[dict, list]:
     """Corre el ciclo de herramientas. Devuelve ({texto, bloques, accion, consultas}, historial)."""
     sesion.reiniciar_turno()
+    sesion.ctx_params = dict((contexto or {}).get("params") or {})
     # El system se queda igual entre turnos. El estado del dashboard cambia en cada
     # pregunta, así que viaja dentro del turno del usuario: si cambiara el system,
     # los bloques de razonamiento firmados de los turnos previos quedarían inválidos.
@@ -1261,7 +1326,7 @@ def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: d
     if ult.get("role") == "user" and (isinstance(c, str) or (isinstance(c, list) and not any(b.get("type") == "tool_result" for b in c))):
         bloques = [{"type": "text", "text": c}] if isinstance(c, str) else list(c)
         msgs[-1] = {"role": "user", "content": bloques + [
-            {"type": "text", "text": "[Estado actual del dashboard que ve el usuario]\n" + describir_contexto(contexto, sesion.R)},
+            {"type": "text", "text": "[Estado actual del dashboard que ve el usuario]\n" + describir_contexto(contexto, sesion.R, meses_panel(sesion.R, sesion.V))},
         ]}
     textos: list[str] = []
     recuperado = pedido_texto = False

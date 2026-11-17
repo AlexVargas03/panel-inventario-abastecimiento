@@ -341,7 +341,9 @@
     var pg = ['pn', 'po', 'alm', 'pl', 'cc', 'sg'].find(function (n) { var e = document.getElementById('pg-' + n); return e && !e.hidden; }) || 'pn';
     var cb = document.querySelector('#pl-crit button[aria-selected="true"]');
     var v = function (id) { var e = document.getElementById(id); return e ? e.value : null; };
-    return { params: dash.params(), pestana: pg, criterio_obsoleto: cb ? cb.dataset.c : null, buscar_obsoleto: v('pl-oq') || '',
+    var ventas = null;
+    try { ventas = { empresa: typeof vcEmp !== 'undefined' ? vcEmp : null, vista: (document.querySelector('#sec-ventas .vc-flipb[aria-pressed="true"]') ? 'canal' : 'total'), mes: typeof vcSel !== 'undefined' ? vcSel : null }; } catch (e) { /* nada */ }
+    return { params: dash.params(), pestana: pg, ventas: ventas, criterio_obsoleto: cb ? cb.dataset.c : null, buscar_obsoleto: v('pl-oq') || '',
              planificador: { meta_venta_mes: v('pl-meta'), meses: v('pl-mes'), margen_pct: v('pl-mg'), dias_cierre: v('pl-dd') } };
   }
   function enviar(tipo, extra) {
@@ -884,9 +886,19 @@
       }
       /* Controles finos: se aplican cuando la pestaña ya está pintada */
       var fino = function (fn, ms) { setTimeout(function () { try { fn(); } catch (e) { console.error('Control del dashboard', e); } }, ms || 150); };
-      if (acc.vista_ventas) {
-        fino(function () { var b = document.getElementById(acc.vista_ventas === 'margen' ? 'so-vt-p' : 'so-vt-s'); if (b && b.getAttribute('aria-selected') !== 'true') b.click(); });
-        foco = document.getElementById('so-vtitle') || foco;
+      if (acc.ventas) {
+        var vA = acc.ventas;
+        fino(function () {
+          if (vA.empresa) { var be = document.querySelector('#sec-ventas [data-vce="' + vA.empresa + '"]'); if (be && be.getAttribute('aria-pressed') !== 'true') be.click(); }
+          setTimeout(function () {
+            try {
+              if (vA.vista) { var fb = document.querySelector('#sec-ventas .vc-flipb'); if (fb && (fb.getAttribute('aria-pressed') === 'true') !== (vA.vista === 'canal')) fb.click(); }
+              if (vA.mes === 'cerrar') { var bk = document.getElementById('vc-sback'); if (bk && typeof vcSel !== 'undefined' && vcSel) bk.click(); }
+              else if (vA.mes && typeof drawVc === 'function') { vcSel = vA.mes; vcSwapSide = true; drawVc(); }
+            } catch (e) { console.error('Control de Ventas por mes', e); }
+          }, 200);
+        }, 300);
+        foco = document.getElementById('sec-ventas') || foco;
       }
       if (acc.abc_celda) {
         fino(function () {

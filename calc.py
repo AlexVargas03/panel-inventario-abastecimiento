@@ -29,11 +29,12 @@ DATASETS = {
     "sellout_proveedor": ("sellout_proveedor.csv", ["venta", "costo_sin_igv", "unidades", "tickets", "skus"]),
     "sellout_tienda_prov": ("sellout_tienda_prov.csv", ["venta", "costo_sin_igv"]),
     "sku_venta": ("sku_venta.csv", ["unidades", "venta", "costo_sin_igv"]),
-    "abc_xyz": ("abc_xyz.csv", ["stock", "valor", "longitud", "ancho", "alto", "peso"]),
+    "abc_xyz": ("abc_xyz.csv", ["stock", "valor", "longitud", "ancho", "alto", "peso", "venta_mes", "pct_venta"]),
     "almacenes": ("almacenes.json", []),
     "cc_maestro": ("cc_maestro.csv", ["stock", "conteo", "reconteo1", "reconteo2", "diferencia", "costo_unitario", "total"]),
     "cc_causas": ("cc_causas.csv", []),
     "cc_historia": ("cc_historia.csv", ["stock", "conteo", "reconteo1", "reconteo2", "diferencia", "costo_unitario", "total"]),
+    "ventas_canal": ("dashboard_evolucion_ventas.csv", ['Inmediato', 'PorRecoger', 'Express', 'Reparto', 'Web', 'Otros', 'VentaTotal', 'CostoTotal', 'Margen', 'MargenPct', 'MetaMensual', 'Diferencia', 'Cumplimiento']),
 }
 
 DESCRIPCIONES = {
@@ -45,6 +46,7 @@ DESCRIPCIONES = {
     "abc_xyz": "Productos de ALFA y TORU (empresa) con producto_id, producto, categoria, segmento ABC-XYZ, stock, valor (Stock Valorizado), medidas en cm (longitud, ancho, alto) y peso. Los códigos TORU llevan una T delante del código ALFA.",
     "cc_maestro": "Conteo cíclico (resumen_general_diferencias de SharePoint): una fila por artículo contado en cada proceso de conteo: empresa, fecha, id_proceso, almacen, desc_proceso, articulo, descripcion, um, stock (sistema), conteo, reconteo1, reconteo2, diferencia, costo_unitario, total, proveedor, grupo, subgrupo, marca, nro_ajuste.",
     "cc_historia": "Histórico acumulado del conteo cíclico: todos los procesos que pasaron por el panel aunque ya no vengan en el archivo de SharePoint; mismas columnas que cc_maestro.",
+    "ventas_canal": "Venta mensual por empresa (ALFA, TORU) desde 2021 (dashboard_evolucion_ventas de SharePoint): Anio, Mes, venta por canal (Inmediato, PorRecoger, Express, Reparto, Web, Otros), VentaTotal, CostoTotal, Margen, MargenPct, MetaMensual (cuota, desde 2026), Diferencia, Cumplimiento y Estado.",
     "cc_causas": "Causas de las diferencias del conteo cíclico, de carga manual: empresa, id_proceso, articulo, causa, estado, observacion.",
     "almacenes": "4 almacenes físicos: id, almacen, capacidad, usado_alfa, usado_toru, usado_total, libre (todo en m³), pct_total/pct_alfa/pct_toru (en %), vitrina (m³ de vitrina/cuarentena), uni_alfa, uni_toru, monto_alfa, monto_toru.",
 }
@@ -197,7 +199,8 @@ def leer_subido(clave: str, archivo) -> pd.DataFrame:
     # Nombres alternativos del CSV de SharePoint dashboard_abcxyz.csv
     if clave == "abc_xyz":
         ren = {"producto_nombre": "producto", "segmento_abcxyz": "segmento", "stock_actual": "stock",
-               "stock valorizado": "valor", "longitud_cm": "longitud", "ancho_cm": "ancho", "alto_cm": "alto"}
+               "stock valorizado": "valor", "longitud_cm": "longitud", "ancho_cm": "ancho", "alto_cm": "alto",
+               "venta_promedio_mensual": "venta_mes", "pct_total_empresa": "pct_venta"}
         df.columns = [ren.get(c.lower(), c.lower()) for c in df.columns]
         for c in nums:
             if c in df.columns:
