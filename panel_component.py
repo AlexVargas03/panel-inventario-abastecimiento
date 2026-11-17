@@ -52,7 +52,7 @@ def _armar_index() -> None:
     v = _sello()
     html = f"""<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Panel de Inventario y Abastecimiento</title>
+<title>Tablero de control principal</title>
 <link rel="stylesheet" href="base.css?v={v}">
 <link rel="stylesheet" href="ia.css?v={v}">
 <script src="d3.min.js?v={v}"></script>

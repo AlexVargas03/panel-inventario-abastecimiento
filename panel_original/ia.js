@@ -669,7 +669,7 @@
     var lista = function (xs, tag) { return '<' + tag + '>' + xs.map(function (x) { return '<li>' + inline(x) + '</li>'; }).join('') + '</' + tag + '>'; };
     return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>' + esc(b.titulo) + '</title>' + hojas +
       '<style>' + CSS_INFORME + '</style></head><body class="inf-doc">' +
-      '<header class="inf-cab"><div class="inf-marca">Panel de Inventario y Abastecimiento · ALFA / TORU</div>' +
+      '<header class="inf-cab"><div class="inf-marca">Tablero de control principal · ALFA / TORU</div>' +
       '<h1>' + esc(b.titulo) + '</h1>' + (b.subtitulo ? '<p>' + esc(b.subtitulo) + '</p>' : '') +
       '<div class="inf-fecha">Generado el ' + esc(b.fecha || '') + ' por el asistente IA</div></header>' +
       ((b.resumen || []).length ? '<section class="inf-res"><h2>Resumen ejecutivo</h2>' + lista(b.resumen, 'ul') + '</section>' : '') +

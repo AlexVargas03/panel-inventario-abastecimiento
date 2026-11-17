@@ -1,4 +1,4 @@
-"""Panel de Inventario y Abastecimiento con Asistente IA — Streamlit.
+"""Tablero de control principal con Asistente IA — Streamlit.
 
 Ejecutar en local:   streamlit run app.py
 Streamlit Cloud:     subir esta carpeta a un repositorio privado de GitHub, elegir app.py y
@@ -18,7 +18,7 @@ import sharepoint
 
 LIMA = timezone(timedelta(hours=-5))   # Perú no cambia de horario
 
-st.set_page_config(page_title="Panel de Inventario y Abastecimiento", page_icon="📦", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Tablero de control principal", page_icon="📦", layout="wide", initial_sidebar_state="collapsed")
 
 
 def secreto(nombre: str, defecto=None):
@@ -36,7 +36,7 @@ def secreto(nombre: str, defecto=None):
 # ----------------------------------------------------------------------------
 clave_app = secreto("APP_PASSWORD")
 if clave_app and not st.session_state.get("acceso_ok"):
-    st.title("📦 Panel de Inventario y Abastecimiento")
+    st.title("📦 Tablero de control principal")
     pw = st.text_input("Contraseña", type="password")
     if pw:
         if pw == clave_app:
