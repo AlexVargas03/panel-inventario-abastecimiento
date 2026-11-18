@@ -11,6 +11,15 @@
   --color-ok:#006300;
   --color-warn:#734500;
   --cds-chart-muted:#c3c2b7;
+  /* paleta de gráficos (la misma de dash.colors): la usa Ventas por mes y su vista por canal */
+  --cds-chart-categorical-1:#2a78d6;
+  --cds-chart-categorical-2:#eb6834;
+  --cds-chart-categorical-3:#1baf7a;
+  --cds-chart-categorical-4:#eda100;
+  --cds-chart-categorical-5:#e87ba4;
+  --cds-chart-categorical-6:#008300;
+  --cds-chart-categorical-7:#6250d6;
+  --cds-chart-categorical-8:#e34948;
   --cds-chart-grid:rgba(11,11,11,.1);
   --cds-chart-good:#0ca30c;
   --cds-surface-popover:#fff;
