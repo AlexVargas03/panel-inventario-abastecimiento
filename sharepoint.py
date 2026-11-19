@@ -20,6 +20,7 @@ La configuración va en los Secrets de Streamlit, nunca en el código:
     cc_causas   = ""                         # vacío = no está en SharePoint (carga manual)
     cc_historia = ""                         # histórico acumulado del conteo (por ahora desde data/)
     # ventas_canal = "dashboard_evolucion_ventas.csv"   # ya es el nombre por defecto
+    # compras_ventas_inv = "dashboard_compras_ventas_inv.csv"   # ya es el nombre por defecto
     # un Excel con varias hojas: "archivo.xlsx#NombreHoja"
 
 Para probar la conexión desde la carpeta del proyecto (lee .streamlit/secrets.toml):

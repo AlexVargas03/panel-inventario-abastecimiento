@@ -126,6 +126,7 @@ ETIQUETAS = {
     "cc_causas": "Causas del conteo cíclico (cc_causas.csv)",
     "cc_historia": "Histórico del conteo cíclico (cc_historia.csv)",
     "ventas_canal": "Ventas por mes, canal y cuota (dashboard_evolucion_ventas.csv)",
+    "compras_ventas_inv": "Compras, ventas e inventario (dashboard_compras_ventas_inv.csv)",
 }
 
 subidos = st.session_state.setdefault("subidos", {})

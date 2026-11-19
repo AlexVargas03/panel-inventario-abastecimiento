@@ -34,6 +34,7 @@ DATASETS = {
     "cc_maestro": ("cc_maestro.csv", ["stock", "conteo", "reconteo1", "reconteo2", "diferencia", "costo_unitario", "total"]),
     "cc_causas": ("cc_causas.csv", []),
     "cc_historia": ("cc_historia.csv", ["stock", "conteo", "reconteo1", "reconteo2", "diferencia", "costo_unitario", "total"]),
+    "compras_ventas_inv": ("dashboard_compras_ventas_inv.csv", ["TotalValor"]),
     "ventas_canal": ("dashboard_evolucion_ventas.csv", ['Inmediato', 'PorRecoger', 'Express', 'Reparto', 'Web', 'Otros', 'VentaTotal', 'CostoTotal', 'Margen', 'MargenPct', 'MetaMensual', 'Diferencia', 'Cumplimiento']),
 }
 
@@ -46,6 +47,7 @@ DESCRIPCIONES = {
     "abc_xyz": "Productos de ALFA y TORU (empresa) con producto_id, producto, categoria, segmento ABC-XYZ, stock, valor (Stock Valorizado), medidas en cm (longitud, ancho, alto) y peso. Los códigos TORU llevan una T delante del código ALFA.",
     "cc_maestro": "Conteo cíclico (resumen_general_diferencias de SharePoint): una fila por artículo contado en cada proceso de conteo: empresa, fecha, id_proceso, almacen, desc_proceso, articulo, descripcion, um, stock (sistema), conteo, reconteo1, reconteo2, diferencia, costo_unitario, total, proveedor, grupo, subgrupo, marca, nro_ajuste.",
     "cc_historia": "Histórico acumulado del conteo cíclico: todos los procesos que pasaron por el panel aunque ya no vengan en el archivo de SharePoint; mismas columnas que cc_maestro.",
+    "compras_ventas_inv": "Por empresa (ALFA, TORU), TipoInfo (SELLIN = compras, SELLOUT = ventas, INVENTARIO = valor del inventario del mes), Anio, Mes y TotalValor (dashboard_compras_ventas_inv de SharePoint).",
     "ventas_canal": "Venta mensual por empresa (ALFA, TORU) desde 2021 (dashboard_evolucion_ventas de SharePoint): Anio, Mes, venta por canal (Inmediato, PorRecoger, Express, Reparto, Web, Otros), VentaTotal, CostoTotal, Margen, MargenPct, MetaMensual (cuota, desde 2026), Diferencia, Cumplimiento y Estado.",
     "cc_causas": "Causas de las diferencias del conteo cíclico, de carga manual: empresa, id_proceso, articulo, causa, estado, observacion.",
     "almacenes": "4 almacenes físicos: id, almacen, capacidad, usado_alfa, usado_toru, usado_total, libre (todo en m³), pct_total/pct_alfa/pct_toru (en %), vitrina (m³ de vitrina/cuarentena), uni_alfa, uni_toru, monto_alfa, monto_toru.",

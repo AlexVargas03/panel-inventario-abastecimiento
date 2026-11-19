@@ -338,12 +338,14 @@
   /* ---------- Envío a Python ---------- */
   function nuevoId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
   function contexto() {
-    var pg = ['pn', 'po', 'alm', 'pl', 'cc', 'sg'].find(function (n) { var e = document.getElementById('pg-' + n); return e && !e.hidden; }) || 'pn';
+    var pg = ['pn', 'po', 'alm', 'cc', 'sg'].find(function (n) { var e = document.getElementById('pg-' + n); return e && !e.hidden; }) || 'pn';
     var cb = document.querySelector('#pl-crit button[aria-selected="true"]');
     var v = function (id) { var e = document.getElementById(id); return e ? e.value : null; };
     var ventas = null;
     try { ventas = { empresa: typeof vcEmp !== 'undefined' ? vcEmp : null, vista: (document.querySelector('#sec-ventas .vc-flipb[aria-pressed="true"]') ? 'canal' : 'total'), mes: typeof vcSel !== 'undefined' ? vcSel : null }; } catch (e) { /* nada */ }
-    return { params: dash.params(), pestana: pg, ventas: ventas, criterio_obsoleto: cb ? cb.dataset.c : null, buscar_obsoleto: v('pl-oq') || '',
+    var compras = null;
+    try { if (typeof cvEmp !== 'undefined') compras = { empresa: cvEmp, desde: (typeof cvR !== 'undefined' && cvR) ? cvR.d : null, hasta: (typeof cvR !== 'undefined' && cvR) ? cvR.h : null }; } catch (e) { /* nada */ }
+    return { params: dash.params(), pestana: pg, ventas: ventas, compras: compras, criterio_obsoleto: cb ? cb.dataset.c : null, buscar_obsoleto: v('pl-oq') || '',
              planificador: { meta_venta_mes: v('pl-meta'), meses: v('pl-mes'), margen_pct: v('pl-mg'), dias_cierre: v('pl-dd') } };
   }
   function enviar(tipo, extra) {
@@ -886,6 +888,16 @@
       }
       /* Controles finos: se aplican cuando la pestaña ya está pintada */
       var fino = function (fn, ms) { setTimeout(function () { try { fn(); } catch (e) { console.error('Control del dashboard', e); } }, ms || 150); };
+      if (acc.compras) {
+        var cA = acc.compras;
+        fino(function () {
+          if (cA.empresa) { var bc2 = document.querySelector('#sec-cvi [data-cve="' + cA.empresa + '"]'); if (bc2 && bc2.getAttribute('aria-pressed') !== 'true') bc2.click(); }
+          if ((cA.todo || cA.desde) && typeof drawCv === 'function') {
+            try { cvR = cA.todo ? null : { d: cA.desde, h: cA.hasta || cA.desde }; cvDef = true; drawCv(); } catch (e) { console.error('Control de Compras', e); }
+          }
+        }, 300);
+        foco = document.getElementById('sec-cvi') || foco;
+      }
       if (acc.ventas) {
         var vA = acc.ventas;
         fino(function () {
