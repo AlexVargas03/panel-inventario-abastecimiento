@@ -48,8 +48,17 @@ if clave_app and not st.session_state.get("acceso_ok"):
 # ----------------------------------------------------------------------------
 # Datos: SharePoint (si está configurado) o los archivos de /data, reemplazables desde la barra lateral
 # ----------------------------------------------------------------------------
-@st.cache_data(show_spinner="Cargando archivos…")
-def datos_por_defecto():
+def huella_datos() -> str:
+    """Cambia si cambian los datos del panel (nombres o archivos de data/): así la caché no sirve datos de una versión anterior."""
+    partes = []
+    for clave, (archivo, _) in calc.DATASETS.items():
+        f = calc.DATA_DIR / archivo
+        partes.append(f"{clave}:{f.stat().st_size if f.exists() else 0}:{int(f.stat().st_mtime) if f.exists() else 0}")
+    return "|".join(partes)
+
+
+@st.cache_data(show_spinner="Cargando archivos…", max_entries=2)
+def datos_por_defecto(huella: str):
     return calc.cargar_por_defecto()
 
 
@@ -75,11 +84,12 @@ def datos_sharepoint(corte: str, huella: str, _cfg: dict):
 
 cfg_sp = sharepoint.a_dict(secreto("sharepoint") or {})
 info_sp, corte = None, None
-ds = dict(datos_por_defecto())
+ds = dict(datos_por_defecto(huella_datos()))
 if sharepoint.configurado(cfg_sp):
     hora_corte = int(cfg_sp.get("hora_corte", 9))
     corte = corte_diario(hora_corte)
-    huella = repr(sorted((k, v) for k, v in cfg_sp.items() if k != "client_secret"))   # cambia si cambia sitio, carpeta o archivos
+    # cambia si cambia sitio, carpeta, archivos o los datos que usa el panel
+    huella = repr(sorted((k, v) for k, v in cfg_sp.items() if k != "client_secret")) + "|" + ",".join(calc.DATASETS)
     ds_sp, info_sp = datos_sharepoint(corte, huella, cfg_sp)
     # Si falló, se reintenta cada 30 minutos en vez de esperar al día siguiente
     if info_sp.get("fallo") and datetime.now(LIMA) - datetime.fromisoformat(info_sp["traido"]) > timedelta(minutes=30):
@@ -147,7 +157,7 @@ with st.sidebar:
             subidos.pop(clave, None)
     if subidos:
         st.success("Usando archivo nuevo en: " + ", ".join(subidos))
-    st.caption("Filas cargadas: " + " · ".join(f"{c} {len(subidos.get(c, ds[c])):,}" for c in ETIQUETAS))
+    st.caption("Filas cargadas: " + " · ".join(f"{c} {len(subidos.get(c, ds.get(c, []))):,}" for c in ETIQUETAS))
 ds.update(subidos)
 
 try:
