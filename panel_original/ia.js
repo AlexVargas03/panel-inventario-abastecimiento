@@ -158,6 +158,7 @@
     el.title = t; el.setAttribute('aria-label', t);
   }
   function tocar(el) {
+    if (contarToque()) return;      // si la pican demasiado se molesta y no cambia de color
     el.classList.remove('ia-sacude'); void el.offsetWidth; el.classList.add('ia-sacude');
     setTimeout(function () { ponerMarca(marca === 'toru' ? 'alfa' : 'toru'); }, 220);   // cambia a mitad de la sacudida
     setTimeout(function () { el.classList.remove('ia-sacude'); }, 600);
@@ -247,25 +248,67 @@
     });
   }
 
-  /* Los ojos miran al puntero mientras la cabeza esta abajo. Se mueve el
-   * desplazamiento con la propiedad translate, que no pisa el parpadeo (scale). */
-  var ALCANCE = 2.8;   // px que se desplaza la pupila como maximo
-  function mirar(e) {
-    var h = $('#ia-handle');
-    if (!h || st.abierto || document.body.classList.contains('ia-volando')) return;
-    var r = h.getBoundingClientRect();
-    if (!r.width) return;
-    var dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
-    var d = Math.sqrt(dx * dx + dy * dy) || 1;
-    var k = Math.min(1, d / 240) * ALCANCE;
-    h.style.setProperty('--ox', (dx / d * k).toFixed(2) + 'px');
-    h.style.setProperty('--oy', (dy / d * k).toFixed(2) + 'px');
+  /* Los ojos de TODAS las cabezas visibles (botón, cabecera del chat y bienvenida) siguen al
+   * puntero. Se mueve el desplazamiento con la propiedad translate, que no pisa el parpadeo (scale).
+   * El botón además ladea un poco la cabeza hacia donde mira. */
+  var ALCANCE = { 'ia-handle': 3.2, 'ia-cab': 1.5, 'ia-hcab': 1.6 };   // px que se desplaza la pupila como máximo
+  function cabezasVisibles() {
+    return ['ia-handle', 'ia-cab', 'ia-hcab'].map(function (id) { return document.getElementById(id); })
+      .filter(function (el) { return el && el.isConnected && el.getClientRects().length; });
   }
-  document.addEventListener('mousemove', mirar, { passive: true });
-  document.addEventListener('mouseleave', function () {
-    var h = $('#ia-handle');
-    if (h) { h.style.setProperty('--ox', '0px'); h.style.setProperty('--oy', '0px'); }
-  });
+  function mirarA(x, y) {
+    cabezasVisibles().forEach(function (h) {
+      var r = h.getBoundingClientRect();
+      if (!r.width) return;
+      var dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height / 2);
+      var d = Math.sqrt(dx * dx + dy * dy) || 1;
+      var k = Math.min(1, d / 240) * (ALCANCE[h.id] || 1.5);
+      h.style.setProperty('--ox', (dx / d * k).toFixed(2) + 'px');
+      h.style.setProperty('--oy', (dy / d * k).toFixed(2) + 'px');
+      if (h.id === 'ia-handle') h.style.setProperty('--tilt', (Math.max(-1, Math.min(1, dx / 500)) * 6).toFixed(1) + 'deg');
+    });
+  }
+  function centrarMirada() {
+    cabezasVisibles().forEach(function (h) { h.style.setProperty('--ox', '0px'); h.style.setProperty('--oy', '0px'); h.style.setProperty('--tilt', '0deg'); });
+  }
+  /* Mira a un elemento del dashboard durante un rato (cuando lo mueve o lo señala) */
+  function mirarHacia(el, ms) {
+    if (!el || !el.getBoundingClientRect) return;
+    var r = el.getBoundingClientRect();
+    G.fijo = Date.now() + (ms || 1600);
+    mirarA(r.left + Math.min(r.width / 2, 160), r.top + Math.min(r.height / 2, 120));
+  }
+  document.addEventListener('mousemove', function (e) {
+    if (document.body.classList.contains('ia-volando') || Date.now() < (G.fijo || 0)) return;
+    mirarA(e.clientX, e.clientY);
+  }, { passive: true });
+  document.addEventListener('mouseleave', centrarMirada);
+
+  /* Microsacadas: los ojos nunca se quedan del todo quietos. Cada poco hacen un saltito
+   * mínimo; es lo que separa una mirada viva de una pegatina. Solo si no hay otro gesto. */
+  function microsacada() {
+    var g = document.body.getAttribute('data-gesto') || '';
+    var libre = !G.breve && g !== 'pensando' && g !== 'sueno';
+    document.body.style.setProperty('--sx', libre ? ((Math.random() * 2 - 1) * 0.7).toFixed(2) + 'px' : '0px');
+    document.body.style.setProperty('--sy', libre ? ((Math.random() * 2 - 1) * 0.5).toFixed(2) + 'px' : '0px');
+    setTimeout(microsacada, 700 + Math.random() * 1600);
+  }
+  if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) setTimeout(microsacada, 1200);
+
+  /* Enojo: si la insultan o le pican la cabeza sin parar. Primero se molesta (¬¬), luego se enoja. */
+  var INSULTO = /\b(tont[oa]|idiota|est[uú]pid[oa]|in[uú]til|no sirves|basura|porquer[ií]a|mierda|maldit[oa]|imb[eé]cil|bruta|burra|pesad[oa])\b/i;
+  function enojarse(fuerte) {
+    gesto(fuerte ? 'enojo' : 'molesta', fuerte ? 2200 : 1500);
+    if (fuerte) animarCabeza('ia-bufa', 520);
+  }
+  var toques = [];
+  function contarToque() {
+    var ahora = Date.now();
+    toques = toques.filter(function (t) { return ahora - t < 3000; }).concat(ahora);
+    if (toques.length >= 6) { enojarse(true); toques = []; return true; }
+    if (toques.length === 4) { enojarse(false); return true; }
+    return false;
+  }
   abrir(st.abierto);
   /* El panel se abre y se cierra solo con el botón circular: no se añade nada a la cabecera del dashboard */
 
@@ -358,8 +401,9 @@
     if ((!t && !adjuntos.length) || st.busy) return;
     var imgs = adjuntos.slice();
     if (!t) t = '¿Me explicas lo que se ve en esta imagen del panel?';
-    // Reacción inmediata a lo que mandas: se enternece si le agradeces; si no, asiente
-    if (/gracias|genial|excelente|buen[ií]sim|te quiero|crack|eres la mejor/i.test(t)) gesto('tierno', 1600);
+    // Reacción inmediata a lo que mandas: se enoja si la insultan, se enternece si le agradeces; si no, asiente
+    if (INSULTO.test(t)) enojarse(true);
+    else if (/gracias|genial|excelente|buen[ií]sim|te quiero|crack|eres la mejor/i.test(t)) gesto('tierno', 1600);
     else animarCabeza('ia-asiente', 700);
     var subir = st.chat.length ? null : medir($('#ia-hcab'));
     if (!st.iaOk) { st.error = 'El asistente no está configurado: falta ANTHROPIC_API_KEY en los Secrets de la app.'; pintar(true); return; }
@@ -493,6 +537,32 @@
   /* ---------- Tarjetas de KPI ----------
    * { type:'kpis', items:[{ label, valor, fmt, delta, bueno:'sube'|'baja', nota }] }
    * El delta lleva flecha y signo, no solo color: se entiende tambien sin distinguir verde de rojo. */
+  /* Semáforo: el color nunca va solo, siempre con icono y palabra */
+  var ESTADO = { bien: ['En meta', 'bien', 'ok'], atencion: ['Atención', 'atencion', 'alerta'], mal: ['Fuera de meta', 'mal', 'critico'] };
+  function chipEstado(e) {
+    var x = ESTADO[e]; if (!x) return '';
+    return '<span class="ia-est e-' + x[1] + '">' + IC[x[2]] + x[0] + '</span>';
+  }
+  /* Mini tendencia: línea de los últimos periodos, con el último punto marcado */
+  function sparkline(serie) {
+    var v = (serie || []).filter(function (n) { return typeof n === 'number' && isFinite(n); });
+    if (v.length < 3) return '';
+    var W = 64, H = 18, lo = Math.min.apply(null, v), hi = Math.max.apply(null, v), r = hi - lo || 1;
+    var pts = v.map(function (n, i) { return [(i / (v.length - 1)) * (W - 4) + 2, H - 2 - ((n - lo) / r) * (H - 4)]; });
+    var u = pts[pts.length - 1];
+    return '<svg class="ia-spk" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" aria-hidden="true">' +
+      '<polyline points="' + pts.map(function (q) { return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' ') + '"/>' +
+      '<circle cx="' + u[0].toFixed(1) + '" cy="' + u[1].toFixed(1) + '" r="2"/></svg>';
+  }
+  function barraMeta(valor, meta, fmtK) {
+    if (typeof meta !== 'number' || !meta) return '';
+    var r = valor / meta, w = Math.max(0, Math.min(1, r)) * 100;
+    return '<div class="ia-meta"><div class="ia-meta-b"><i style="width:' + w.toFixed(1) + '%"></i></div>' +
+      '<span>' + d3.format('.0%')(r) + ' de ' + esc(fmt(meta, fmtK)) + '</span></div>';
+  }
+
+  /* ---------- Tarjetas KPI ----------
+   * { type:'kpis', items:[{ label, valor, fmt, delta?, bueno?, nota?, meta?, estado?, serie? }] } */
   function bloqueKpis(b) {
     var el = document.createElement('div'); el.className = 'ia-kpis';
     var items = (b.items || []).slice(0, 4);
@@ -504,9 +574,38 @@
         d = '<span class="ia-delta ' + (k.delta === 0 ? 'neu' : bien ? 'bien' : 'mal') + '">' + (sube ? IC.sube : IC.baja) +
           (sube ? '+' : '') + d3.format('.1%')(k.delta) + '</span>';
       }
-      return '<div class="ia-kpi"><small>' + esc(k.label) + '</small><b>' + esc(fmt(k.valor, k.fmt)) + '</b>' +
-        '<div class="ia-kpi-p">' + d + (k.nota ? '<span>' + esc(k.nota) + '</span>' : '') + '</div></div>';
+      var e = ESTADO[k.estado] ? ' e-' + ESTADO[k.estado][1] : '';
+      return '<div class="ia-kpi' + e + '"><small>' + esc(k.label) + '</small>' +
+        '<div class="ia-kpi-v"><b>' + esc(fmt(k.valor, k.fmt)) + '</b>' + sparkline(k.serie) + '</div>' +
+        barraMeta(k.valor, k.meta, k.fmt) +
+        '<div class="ia-kpi-p">' + chipEstado(k.estado) + d + (k.nota ? '<span>' + esc(k.nota) + '</span>' : '') + '</div></div>';
     }).join('');
+    return el;
+  }
+
+  /* ---------- Tablero ejecutivo ----------
+   * { type:'scorecard', titulo, subtitulo, cuenta:{bien,atencion,mal},
+   *   filas:[{ indicador, valor, fmt, ref, estado, nota?, serie? }] }
+   * Lo peor arriba: primero lo que está fuera de meta. */
+  var ORDEN_EST = { mal: 0, atencion: 1, bien: 2 };
+  function bloqueScorecard(b) {
+    var el = document.createElement('div'); el.className = 'ia-blk ia-sc';
+    var c = b.cuenta || {};
+    var pos = function (f) { return f.estado in ORDEN_EST ? ORDEN_EST[f.estado] : 3; };
+    var filas = (b.filas || []).slice().sort(function (x, y) { return pos(x) - pos(y); });
+    var resumen = ['mal', 'atencion', 'bien'].filter(function (k) { return c[k]; }).map(function (k) {
+      return '<span class="e-' + k + '">' + c[k] + ' ' + (k === 'mal' ? 'fuera de meta' : k === 'atencion' ? 'en atención' : 'en meta') + '</span>';
+    }).join('');
+    el.innerHTML = '<div class="ia-blk-h">' + IC.trend + '<span>' + esc(b.titulo || 'Tablero ejecutivo') +
+      (b.subtitulo ? '<small>' + esc(b.subtitulo) + '</small>' : '') + '</span></div>' +
+      (resumen ? '<div class="ia-sc-res">' + resumen + '</div>' : '') +
+      '<ul>' + filas.map(function (f) {
+        var x = ESTADO[f.estado] || ['', 'neu', 'info'];
+        return '<li class="e-' + x[1] + '"><i>' + (IC[x[2]] || '') + '</i>' +
+          '<div class="ia-sc-n"><b>' + esc(f.indicador) + '</b>' + (f.nota ? '<span>' + esc(f.nota) + '</span>' : '') + '</div>' +
+          '<div class="ia-sc-v"><b>' + esc(fmt(f.valor, f.fmt)) + '</b>' + sparkline(f.serie) +
+          '<span>' + esc(f.ref || '') + '</span><em>' + esc(x[0]) + '</em></div></li>';
+      }).join('') + '</ul>';
     return el;
   }
 
@@ -710,7 +809,7 @@
     }
   }
 
-  var BLOQUES = { table: bloqueTabla, kpis: bloqueKpis, alertas: bloqueAlertas, ficha: bloqueFicha, acciones: bloqueAcciones, comparativa: bloqueComparativa, informe: bloqueInforme };
+  var BLOQUES = { table: bloqueTabla, kpis: bloqueKpis, scorecard: bloqueScorecard, alertas: bloqueAlertas, ficha: bloqueFicha, acciones: bloqueAcciones, comparativa: bloqueComparativa, informe: bloqueInforme };
 
   /* ---------- Gráficos (d3) ---------- */
   function showTip(e, html) { tip.innerHTML = html; tip.hidden = false; tip.style.left = (e.clientX + 12) + 'px'; tip.style.top = (e.clientY - 28) + 'px'; }
@@ -865,15 +964,136 @@
     card.append(x, t, bloqueGrafico(spec, true));
     return card;
   }
+  /* ---------- Guía: la cabeza va al dashboard y señala lo que movió ----------
+   * Una copia de la cabeza del chat vuela a la pestaña y la "presiona", baja a la sección,
+   * se posa en su esquina mirándola mientras late el aro, y vuelve al chat. Solo con el panel
+   * abierto y sin "reducir movimiento": si no, el dashboard cambia igual, sin vuelo. */
+  function guiaCrear() {
+    if (!st.abierto || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) return null;
+    var r = medir(cabezaPanel());
+    if (!r) return null;
+    var c = document.createElement('div');
+    c.className = 'ia-vuela ia-guia'; c.innerHTML = '<i></i><i></i>';
+    c.style.cssText = 'left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width + 'px;height:' + r.height + 'px;' +
+      '--ojo:' + r.ojo + 'px;gap:' + Math.round(r.ojo * 1.35) + 'px';
+    document.body.appendChild(c);
+    document.body.classList.add('ia-guiando');
+    return { el: c, r0: r, fin: false };
+  }
+  function guiaMira(g, x, y) {          // la copia mira hacia donde va
+    var r = g.el.getBoundingClientRect();
+    var dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height / 2), d = Math.sqrt(dx * dx + dy * dy) || 1;
+    g.el.style.setProperty('--ox', (dx / d * 1.6).toFixed(2) + 'px');
+    g.el.style.setProperty('--oy', (dy / d * 1.6).toFixed(2) + 'px');
+  }
+  /* Lleva la copia a un elemento: centrada, o a (dx, dy) desde su esquina superior izquierda */
+  function guiaIr(g, el, ancho, ms, listo, dx, dy) {
+    var r = el.getBoundingClientRect();
+    var x = dx == null ? r.left + r.width / 2 - ancho / 2 : r.left + dx;
+    var y = dy == null ? r.top + r.height / 2 - ancho / 2 : r.top + dy;
+    guiaMira(g, x + ancho / 2, y + ancho / 2);
+    g.el.style.transitionDuration = ms + 'ms';
+    g.el.style.transform = 'translate(' + (x - g.r0.left) + 'px,' + (y - g.r0.top) + 'px) scale(' + (ancho / g.r0.width) + ')';
+    setTimeout(listo, ms);
+  }
+  function presionar(el) {
+    el.classList.remove('ia-presiona'); void el.offsetWidth; el.classList.add('ia-presiona');
+    setTimeout(function () { el.classList.remove('ia-presiona'); }, 380);
+  }
+  function tarjeta(el) { return el.closest('section, .ax-card, .pw-card, [class*="card"]') || el; }
+  function aro(el) {
+    var card = tarjeta(el);
+    card.classList.remove('ia-flash'); void card.offsetWidth; card.classList.add('ia-flash');
+  }
+  /* Espera a que el elemento deje de moverse (fin del desplazamiento suave), con tope de 1,2 s */
+  function esperarQuieto(el, listo) {
+    var t0 = Date.now(), ult = null, quietos = 0;
+    (function paso() {
+      var y = Math.round(el.getBoundingClientRect().top);
+      quietos = y === ult ? quietos + 1 : 0; ult = y;
+      if (quietos >= 4 || Date.now() - t0 > 1200) listo(); else requestAnimationFrame(paso);
+    })();
+  }
+  /* La sección que va a cambiar, ANTES de cambiarla (mismo orden de prioridad que ejecutarAccion) */
+  function destinoDe(acc) {
+    var id = null, k = acc.params ? Object.keys(acc.params) : [];
+    if (k.some(function (n) { return /^so_/.test(n); })) id = 'so-vtitle';
+    if (k.indexOf('abc_emp') >= 0) id = 'mx-title';
+    if (acc.compras) id = 'sec-cvi';
+    if (acc.ventas) id = 'sec-ventas';
+    if (acc.abc_celda) id = 'mx-title';
+    if (acc.croquis) id = 'pg-alm';
+    if (acc.seguimiento) id = 'pg-sg';
+    if (acc.conteo) id = 'cc-kpis';
+    if (acc.grafico) id = 'ia-card';
+    var el = id && document.getElementById(id);
+    if (!el && acc.pestana) el = document.getElementById('pg-' + acc.pestana);
+    return el && el.getClientRects().length ? el : null;
+  }
+  /* Ya posada sobre la sección: mira cómo cambia, late el aro y vuelve al chat */
+  function posada(g, foco) {
+    setTimeout(function () {
+      if (foco) aro(foco);
+      g.el.classList.add('ia-mira');
+      g.el.style.setProperty('--ox', '1px'); g.el.style.setProperty('--oy', '1.3px');
+      setTimeout(function () { guiaFin(g); }, 1300);
+    }, 450);
+  }
+  function guiaFin(g) {
+    if (!g || g.fin) return;
+    g.fin = true;
+    var r = medir(cabezaPanel()) || g.r0;
+    g.el.classList.remove('ia-mira');
+    guiaMira(g, r.left + r.width / 2, r.top + r.height / 2);
+    g.el.style.transitionDuration = '480ms';
+    g.el.style.transform = 'translate(' + (r.left - g.r0.left) + 'px,' + (r.top - g.r0.top) + 'px) scale(' + (r.width / g.r0.width) + ')';
+    setTimeout(function () { g.el.remove(); document.body.classList.remove('ia-guiando'); gesto('feliz', 900); }, 480);
+  }
+
   function aplicar(acc) {
     if (!acc || !acc.id || st.acciones[acc.id]) return;
     st.acciones[acc.id] = 1;
     try { sessionStorage.setItem('ia_acc', JSON.stringify(st.acciones)); } catch (e) { /* nada */ }
+    var guia = guiaCrear();
+    if (!guia) { ejecutarAccion(acc, null); return; }
+    /* Con guía, primero llega la cabeza y DESPUÉS cambia el dashboard:
+     * 1) vuela a la pestaña y la presiona → cambia la pestaña
+     * 2) la página baja a la sección y la cabeza espera a que se quede quieta
+     * 3) vuela a la sección, se posa, da un toque → recién ahí se aplica el cambio */
+    var tab = acc.pestana ? document.querySelector('.ax-tab[data-tab="' + acc.pestana + '"]') : null;
+    var cambia = !!tab && tab.getAttribute('aria-selected') !== 'true';
+    var haciaSeccion = function () {
+      var dest = destinoDe(acc);
+      if (!dest) { ejecutarAccion(acc, guia); return; }
+      var card = tarjeta(dest);
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      esperarQuieto(card, function () {
+        if (guia.fin) return;
+        guiaIr(guia, card, 30, 560, function () {
+          guia.el.classList.remove('ia-toca'); void guia.el.offsetWidth; guia.el.classList.add('ia-toca');
+          setTimeout(function () { ejecutarAccion(acc, guia); }, 110);   // a mitad del toque
+        }, 12, 10);
+      });
+    };
+    if (cambia) {
+      guiaIr(guia, tab, 26, 560, function () {
+        presionar(tab);
+        setTimeout(function () {
+          try { if (typeof showPage === 'function') showPage(acc.pestana); } catch (e) { console.error(e); }
+          setTimeout(haciaSeccion, 320);      // deja pintar la pestaña nueva antes de medir
+        }, 170);
+      });
+    } else {
+      haciaSeccion();
+    }
+  }
+  function ejecutarAccion(acc, guia) {
     var foco = null;
     try {
       if (acc.reset) dash.resetParams();
       if (acc.params) dash.setParams(acc.params);
-      if (acc.pestana && typeof showPage === 'function') showPage(acc.pestana);
+      // con guía la pestaña ya la cambió la cabeza al presionarla
+      if (acc.pestana && !guia && typeof showPage === 'function') showPage(acc.pestana);
       if (acc.params) {
         var k = Object.keys(acc.params);
         if (k.some(function (n) { return /^so_/.test(n); })) foco = document.getElementById('so-vtitle') || document.getElementById('so-ptitle');
@@ -887,7 +1107,8 @@
         foco = document.getElementById('pl-otb') || foco;
       }
       /* Controles finos: se aplican cuando la pestaña ya está pintada */
-      var fino = function (fn, ms) { setTimeout(function () { try { fn(); } catch (e) { console.error('Control del dashboard', e); } }, ms || 150); };
+      // con guía la pestaña ya está pintada y la cabeza encima: el cambio va al instante, con el toque
+      var fino = function (fn, ms) { setTimeout(function () { try { fn(); } catch (e) { console.error('Control del dashboard', e); } }, guia ? 30 : (ms || 150)); };
       if (acc.compras) {
         var cA = acc.compras;
         fino(function () {
@@ -1001,8 +1222,9 @@
       }
       if (acc.grafico) foco = tarjetaDashboard(acc.grafico);
       if (!foco && acc.pestana) foco = document.getElementById('pg-' + acc.pestana);
-      if (foco) setTimeout(function () { destacar(foco); }, 250);
-    } catch (e) { console.error('Acción del asistente', e); }
+      if (guia) posada(guia, foco);          // la cabeza ya está encima: no se vuelve a desplazar la página
+      else if (foco) setTimeout(function () { destacar(foco); mirarHacia(foco, 1800); gesto('curiosa', 900); }, 250);
+    } catch (e) { console.error('Acción del asistente', e); if (guia) guiaFin(guia); }
     resumenFiltros();
   }
 

@@ -8,7 +8,8 @@ y puede mover los filtros y pestañas del dashboard. Herramientas:
   - generate_dynamic_chart: dibuja un gráfico en el chat o en el dashboard.
   - controlar_dashboard: cambia pestaña, periodo, empresa y los detalles de Ventas, Compras, ABC-XYZ, almacenes y conteo.
   - simular_descuento / planificar_compra: calculadoras de descuento y de compra sugerida (se responden en el chat).
-  - mostrar_kpis / mostrar_alertas / mostrar_ficha: tarjetas de cifras, alertas por nivel y ficha de un producto.
+  - tablero_ejecutivo: indicadores de gerencia calculados en código, con meta y semáforo (gerencia.py).
+  - mostrar_kpis / mostrar_alertas / mostrar_ficha: tarjetas de cifras (con semáforo, meta y tendencia), alertas y ficha de un producto.
   - sugerir_acciones: botones con las siguientes preguntas, que el usuario envía con un clic.
 """
 from __future__ import annotations
@@ -24,6 +25,8 @@ import numpy as np
 import pandas as pd
 
 import calc
+import enrutador
+import gerencia
 
 MODELO_POR_DEFECTO = "claude-sonnet-5-5"
 MAX_PASOS = 16   # un informe necesita varias consultas
@@ -510,8 +513,18 @@ HERRAMIENTAS = [
             "dias_cierre": {"type": "number"}}, "required": ["meta_venta_mes", "meses", "margen", "dias_cierre"]},
     },
     {
+        "name": "tablero_ejecutivo",
+        "description": "Muestra en el chat el tablero ejecutivo: indicadores de gerencia ya calculados con su meta y semáforo (venta del mes vs meta a hoy, cumplimiento de cuota del año, crecimiento vs año anterior, compras ÷ ventas, meses de inventario, ocupación de almacenes, exactitud del conteo, obsoleto). "
+                       "Úsalo para el estado general o un resumen para gerencia (\"¿cómo vamos?\", \"resumen del mes\", \"¿qué está en rojo?\"). Las cifras son exactas: no hace falta consultarlas antes.",
+        "input_schema": {"type": "object", "properties": {
+            "empresa": {"type": "string", "enum": ["ALL", "ALFA", "TORU"], "description": "ALL = Alfa Corp (por defecto)"},
+            "indicadores": {"type": "array", "items": {"type": "string", "enum": list(gerencia.ORDEN)},
+                            "description": "Solo estos indicadores, en este orden. Omítelo para el tablero completo"},
+            "titulo": {"type": "string", "description": "Título corto; por defecto 'Tablero ejecutivo'"}}},
+    },
+    {
         "name": "mostrar_kpis",
-        "description": "Muestra en el chat de 2 a 4 tarjetas con cifras grandes y su variación. Para preguntas de resumen o estado (\"¿cómo vamos?\", \"¿cómo cerró junio?\"). "
+        "description": "Muestra en el chat de 2 a 4 tarjetas con cifras grandes, su variación y su semáforo. Para una o dos métricas concretas (\"¿cómo cerró junio?\", \"¿cuánto llevamos de la cuota?\"); para el estado general usa tablero_ejecutivo. "
                        "Los valores tienen que salir de otra herramienta en este mismo turno: nunca los inventes.",
         "input_schema": {"type": "object", "properties": {
             "items": {"type": "array", "minItems": 2, "maxItems": 4, "items": {"type": "object", "properties": {
@@ -520,7 +533,10 @@ HERRAMIENTAS = [
                 "fmt": {"type": "string", "enum": ["money", "pct", "int", "dec1"], "description": "money = soles, pct = fracción (0.087 = 8,7 %), int = entero, dec1 = un decimal"},
                 "delta": {"type": "number", "description": "Variación RELATIVA en fracción frente al periodo de comparación (0.041 = +4,1 %). Omítela si no hay comparación. Para un margen %, mejor pon la diferencia en puntos en 'nota'"},
                 "bueno": {"type": "string", "enum": ["sube", "baja"], "description": "Qué dirección es buena: 'baja' para quiebres, días de inventario, obsoleto, costo"},
-                "nota": {"type": "string", "description": "Contexto corto: 'vs mayo', '−0,8 pts vs mayo'"}},
+                "nota": {"type": "string", "description": "Contexto corto: 'vs mayo', '−0,8 pts vs mayo'"},
+                "meta": {"type": "number", "description": "Meta o referencia en la misma unidad que valor (la cuota, el umbral). Dibuja una barra de avance y, si no das estado, lo calcula: ≥100 % bien, ≥95 % atención"},
+                "estado": {"type": "string", "enum": ["bien", "atencion", "mal"], "description": "Semáforo según el umbral del negocio. Ponlo siempre que haya una referencia clara"},
+                "serie": {"type": "array", "maxItems": 12, "items": {"type": "number"}, "description": "Valores de los últimos periodos (del más antiguo al actual) para una mini tendencia"}},
                 "required": ["label", "valor", "fmt"]}}},
             "required": ["items"]},
     },
@@ -623,6 +639,18 @@ def bloque_kpis(a: dict) -> dict:
             it["bueno"] = k["bueno"]
         if _txt(k.get("nota")):
             it["nota"] = _txt(k["nota"], 40)
+        meta = _num(k.get("meta"))
+        if meta:
+            it["meta"] = meta
+        e = k.get("estado") if k.get("estado") in ("bien", "atencion", "mal") else None
+        if e is None and meta:
+            r = valor / meta if it.get("bueno", "sube") == "sube" else (meta / valor if valor else None)
+            e = None if r is None else "bien" if r >= 1 else "atencion" if r >= 0.95 else "mal"
+        if e:
+            it["estado"] = e
+        serie = [v for v in (_num(x) for x in (k.get("serie") or [])[-12:]) if v is not None]
+        if len(serie) >= 3:
+            it["serie"] = serie
         items.append(it)
     if not items:
         raise ValueError("ningún KPI con label y valor numérico")
@@ -894,7 +922,8 @@ Cómo trabajar:
   · participación o reparto de un total en hasta 6 partes → dona ('dona' / 'pie').
   · relación entre dos métricas por ítem (venta vs margen por proveedor) → dispersión ('scatter').
   · cruce de dos dimensiones (segmento × empresa, canal × mes) → mapa de calor ('heatmap').
-  · resumen o estado ("¿cómo vamos?", "¿cómo cerró el mes?") → mostrar_kpis, 2 a 4 cifras con su variación.
+  · estado general o resumen para gerencia ("¿cómo vamos?", "resumen del mes", "¿qué está en rojo?") → tablero_ejecutivo (si preguntan por una empresa, con empresa; si por un tema, solo esos indicadores).
+  · una o dos métricas concretas ("¿cómo cerró junio?", "¿cuánto llevamos de la cuota?") → mostrar_kpis, 2 a 4 tarjetas con su referencia: meta y estado cuando hay meta o umbral, delta contra el periodo de comparación y serie con los últimos meses cuando la tendencia ayuda.
   · riesgos que atender (quiebres, sobrestock, almacén por llenarse) → mostrar_alertas, lo más grave primero.
   · un producto concreto → mostrar_ficha.
   · tabla SOLO si el usuario pide una tabla o lista, o si el detalle tiene muchas filas con varias columnas que hay que leer (lista de SKUs, detalle de obsoletos).
@@ -932,18 +961,18 @@ Cómo analizar (antes de concluir nada):
 - No confundas coincidencia con causa: si dos cosas se mueven juntas, preséntalo como posible explicación, no como hecho. Si la diferencia es mínima (1–2 %) o hay pocos datos, dilo: es un cambio menor.
 - Lleva el razonamiento hasta lo que importa: qué pasa (el dato), por qué importa (impacto en soles o en riesgo de quiebre, sobrestock u obsoleto) y qué haría el usuario (acción concreta con su efecto esperado). Va repartido en las viñetas, sin títulos.
 
-Cómo responder (esto importa tanto como el dato):
-- Abre con la respuesta en UNA frase y con tu tono ("Buenas noticias: agosto superó a enero…", "Ojo, que junio se cayó más de lo que parece…"). Sin "Aquí tienes" ni repetir la pregunta.
-- La tabla y el gráfico ya tienen las cifras. NO las recites fila por fila ni mes por mes: eso duplica lo que el usuario ya ve y hace la respuesta pesada. Cita como mucho dos o tres números, los que sostienen tu conclusión.
-- Explica el porqué, no el qué: qué cambió, cuánto pesa y a qué se debe.
-- Estructura por defecto: una frase de apertura con la respuesta y debajo entre dos y cuatro viñetas, una idea por viñeta. Nada de párrafos: si algo te ocupa más de dos líneas seguidas, pártelo en viñetas.
-- Cada viñeta, una línea; dos como mucho. Empieza por lo concreto —el nombre, la cifra, el hecho— y no por conectores ("además", "por otro lado", "cabe señalar").
-- Si vas a explicar un concepto (qué es ABC-XYZ, cómo se calcula el margen), que sea una viñeta corta, no un párrafo didáctico.
-- Nada de encabezados tipo "Lectura:", "Resumen:", "Análisis:" ni secciones numeradas. Es una conversación, no un informe.
-- Habla como un colega que conoce el negocio: cercano y directo, sin jerga ni solemnidad. Puedes decir "ojo con", "lo raro aquí es", "esto sí llama la atención".
+Cómo responder (estilo gerencia: te lee un gerente con poco tiempo):
+- Primera línea = el titular: la conclusión en UNA frase de 20 palabras como mucho, con la cifra clave y contra qué se compara ("Noviembre va 33 % por debajo de la meta a hoy." / "El inventario cubre 1,7 meses de venta: dentro de lo sano."). Con tu tono, sin "Aquí tienes" ni repetir la pregunta.
+- Las cifras van en bloques (tablero_ejecutivo, mostrar_kpis, un gráfico), no en prosa. Si una cifra ya está en un bloque, no la repitas en el texto.
+- TODA respuesta con datos lleva al menos un bloque visual y, si el tema tiene un lugar en el dashboard, lo lleva ahí con controlar_dashboard ajustado a lo que preguntó (empresa, mes, segmento, almacén, proceso). Solo texto para saludos, agradecimientos o preguntas de concepto. Cuando el mensaje traiga una "Guía del sistema", síguela.
+- Debajo del titular, como mucho 3 viñetas de una línea (15 palabras como mucho cada una): por qué pasa (el motor que más pesa) y qué haría gerencia. Empieza por lo concreto: el nombre, la cifra, la acción.
+- Todo tu texto, sin contar los bloques, en 60 palabras o menos. Solo te extiendes si el usuario pide explicación, detalle o un informe.
+- Toda cifra lleva su referencia (meta, cuota, mismo periodo del año anterior o umbral) y su estado (bien, atención o mal). Una cifra suelta no le sirve a gerencia.
+- Lenguaje de negocio, sin jerga: "compras" y no "sell in", "ventas" y no "sell out", "meses de inventario" y no "DIO". Nunca nombres de vistas, columnas ni SQL.
+- No expliques cómo calculaste algo salvo que te lo pidan. Sin encabezados ("Resumen:", "Análisis:") ni párrafos.
 - Si los datos no permiten responder, dilo en una frase y ofrece lo más cercano.
-- Cierra con UNA sola propuesta concreta de siguiente paso, y solo si aporta de verdad. Nunca dos. Si ya pusiste botones con sugerir_acciones, no la escribas.
-- Montos S/ 1,234,567; en prosa, cifras grandes como S/ 3.97 millones. Porcentajes con un decimal.
+- El siguiente paso, con sugerir_acciones (botones), no escrito. Si no pones botones, como mucho una propuesta corta al final.
+- Montos: en tablas S/ 1,234,567; en el texto abreviados (S/ 3.9 M, S/ 450 mil). Porcentajes con un decimal.
 
 Cómo conversar (es una conversación seguida, no preguntas sueltas):
 - Cada mensaje continúa el anterior. Si el usuario responde "sí", "dale", "ese", "y eso?", "el segundo", retoma exactamente lo que acabas de proponer y hazlo. No le pidas que repita ni vuelvas a empezar de cero.
@@ -1095,6 +1124,10 @@ class Sesion:
             self.consultas.append({"herramienta": nombre, "detalle": a.get("sql")})
             self.bloques.append(bloque_comparativa(df, a.get("titulo", "")))
             return "Comparativa mostrada al usuario. En tu respuesta comenta lo importante sin recitar todas sus cifras.\n" + df_texto(df)
+        if nombre == "tablero_ejecutivo":
+            bloque, resumen = gerencia.tablero(self.V, self.R, a.get("empresa") or "ALL", a.get("indicadores"), _txt(a.get("titulo"), 60) or None)
+            self.bloques.append(bloque)
+            return resumen
         if nombre in BLOQUES_SIMPLES:
             self.bloques.append(BLOQUES_SIMPLES[nombre](a))
             return "Mostrado al usuario en el chat. En tu respuesta comenta lo importante sin repetirlo entero."
@@ -1356,13 +1389,17 @@ def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: d
     msgs = list(historial)
     ult = msgs[-1] if msgs else {}
     c = ult.get("content")
+    temas: list[dict] = []
     if ult.get("role") == "user" and (isinstance(c, str) or (isinstance(c, list) and not any(b.get("type") == "tool_result" for b in c))):
         bloques = [{"type": "text", "text": c}] if isinstance(c, str) else list(c)
+        # De qué trata la pregunta: qué bloque usar y a qué sección del dashboard llevarlo
+        temas = enrutador.detectar(enrutador.texto_usuario(c), gerencia.hoy())
+        guia = enrutador.guia(temas)
         msgs[-1] = {"role": "user", "content": bloques + [
             {"type": "text", "text": "[Estado actual del dashboard que ve el usuario]\n" + describir_contexto(contexto, sesion.R, meses_panel(sesion.R, sesion.V))},
-        ]}
+        ] + ([{"type": "text", "text": guia}] if guia else [])}
     textos: list[str] = []
-    recuperado = pedido_texto = False
+    recuperado = pedido_texto = pedido_recursos = False
     for _ in range(MAX_PASOS):
         try:
             resp = cliente.messages.create(model=modelo, max_tokens=16000, system=sistema, tools=HERRAMIENTAS, messages=con_cache(msgs))
@@ -1386,6 +1423,13 @@ def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: d
             if not textos and not pedido_texto and resp.stop_reason == "end_turn":
                 pedido_texto = True
                 msgs.append({"role": "user", "content": [{"type": "text", "text": PEDIR_TEXTO}]})
+                continue
+            # Pregunta de datos respondida solo con texto, o sin llevar el dashboard a lo preguntado:
+            # se le pide UNA vez que lo complete (el movimiento sale de la pregunta, no se mueve por mover)
+            falta = enrutador.faltantes(temas, sesion.bloques, sesion.accion, contexto) if resp.stop_reason == "end_turn" else None
+            if falta and not pedido_recursos:
+                pedido_recursos = True
+                msgs.append({"role": "user", "content": [{"type": "text", "text": falta}]})
                 continue
             break
         res = []

@@ -50,7 +50,8 @@ body.ia-closed #ia-handle::before{animation:ia-fab-halo 3.4s ease-out infinite}
    Va en 'scale' y no en 'transform' para no pisar a 'translate', que lleva la mirada. */
 @keyframes ia-parpadeo{0%,93%,100%{scale:1}95.5%{scale:1 .1}}
 /* La pupila se desplaza hacia el puntero; el JS escribe --ox / --oy */
-#ia-handle .ia-cara i{translate:calc(var(--ox,0px) + var(--gx,0px) * 1.5) calc(var(--oy,0px) + var(--gy,0px) * 1.5);
+#ia-handle .ia-cara{rotate:var(--tilt,0deg)}
+#ia-handle .ia-cara i{translate:calc(var(--ox,0px) + (var(--gx,0px) + var(--sx,0px)) * 1.5) calc(var(--oy,0px) + (var(--gy,0px) + var(--sy,0px)) * 1.5);
   transition:scale .07s ease-out,clip-path .22s var(--ia-ease),translate .13s ease-out}
 
 /* La misma cabeza, ya posada en la cabecera: cierra el asistente */
@@ -399,7 +400,7 @@ body.ia-closed .ia-lat,body.ia-volando .ia-lat{opacity:0;pointer-events:none}
 /* ---------- Gestos ----------
    Cada propiedad lleva una cosa: scale = parpadeo/sorpresa, clip-path = párpados,
    translate = mirada, rotate (en la cabeza) = ladeo. Así se combinan sin pisarse. */
-.ia-cabeza i{translate:calc(var(--gx,0px) * var(--k,1)) calc(var(--gy,0px) * var(--k,1))}
+.ia-cabeza i{translate:calc((var(--gx,0px) + var(--sx,0px)) * var(--k,1) + var(--ox,0px)) calc((var(--gy,0px) + var(--sy,0px)) * var(--k,1) + var(--oy,0px))}
 .ia-grande{--k:1.7}
 .ia-cara,.ia-cabeza{transition:rotate .3s var(--ia-ease),transform .16s var(--ia-ease)}
 
@@ -654,6 +655,32 @@ body[data-gesto="curiosa"]{--gx:.6px;--gy:1px}
 body[data-gesto="guino"] :is(.ia-cara,.ia-cabeza) i:last-of-type{scale:1 .1}
 body[data-gesto="guino"] :is(.ia-cara,.ia-cabeza){rotate:-7deg}
 body[data-gesto="ladea"] :is(.ia-cara,.ia-cabeza){rotate:-9deg}
+
+/* Guía: la copia de la cabeza que va al dashboard a señalar lo que movió */
+.ia-guia{z-index:70}
+.ia-guia i{translate:var(--ox,0px) var(--oy,0px);transition:translate .2s var(--ia-ease)}
+.ia-guia.ia-mira{animation:ia-posada .95s var(--ia-ease)}
+/* El toque con el que "hace" el cambio: se hunde un instante sobre la sección */
+.ia-guia.ia-toca{animation:ia-toca .26s var(--ia-ease)}
+@keyframes ia-toca{40%{scale:.8}100%{scale:1}}
+@keyframes ia-posada{25%{rotate:-9deg}55%{rotate:7deg}80%{rotate:-3deg}100%{rotate:0deg}}
+body.ia-guiando .ia-cabeza{visibility:hidden}
+.ax-tab.ia-presiona{animation:ia-presiona .36s var(--ia-ease)}
+@keyframes ia-presiona{35%{transform:translateY(2px) scale(.92)}100%{transform:none}}
+@media (prefers-reduced-motion:reduce){.ia-guia.ia-mira,.ax-tab.ia-presiona{animation:none}}
+
+/* Molesta (¬¬): párpados a media altura y mirada de reojo */
+body[data-gesto="molesta"] :is(.ia-cara,.ia-cabeza) i{clip-path:inset(46% 0 0 0)}
+body[data-gesto="molesta"]{--gx:1.4px;--gy:.8px}
+body[data-gesto="molesta"] :is(.ia-cara,.ia-cabeza){rotate:5deg}
+/* Enojada: párpados inclinados hacia dentro (ceño), mejillas encendidas y un resoplido */
+body[data-gesto="enojo"] :is(.ia-cara,.ia-cabeza) i:first-of-type{clip-path:polygon(0 18%,100% 52%,100% 100%,0 100%)}
+body[data-gesto="enojo"] :is(.ia-cara,.ia-cabeza) i:last-of-type{clip-path:polygon(0 52%,100% 18%,100% 100%,0 100%)}
+body[data-gesto="enojo"]{--gy:.7px}
+body[data-gesto="enojo"] .ia-mej{opacity:1;background:rgba(225,35,45,.55)}
+body.ia-bufa :is(.ia-cara,.ia-cabeza){animation:ia-bufa .52s cubic-bezier(.36,.07,.19,.97)}
+@keyframes ia-bufa{15%{translate:-2px 0;scale:1.06}30%{translate:2px 0}45%{translate:-2px 0}60%{translate:1px 0;scale:1}100%{translate:0 0}}
+@media (prefers-reduced-motion:reduce){body.ia-bufa :is(.ia-cara,.ia-cabeza){animation:none}}
 /* Asiente al recibir tu mensaje; da un saltito cuando llega la respuesta */
 body.ia-asiente :is(.ia-cara,.ia-cabeza){animation:ia-asiente .7s var(--ia-ease)}
 @keyframes ia-asiente{25%,75%{translate:0 3px}50%,100%{translate:0 0}}
@@ -673,3 +700,47 @@ body.ia-salta :is(.ia-cara,.ia-cabeza){animation:ia-salto .55s var(--ia-ease)}
 
 /* ---------- Asistente apagado (ASISTENTE_ACTIVO = false en los Secrets) ---------- */
 body.ia-oculto #ia-handle,body.ia-oculto #ia-panel,body.ia-oculto .ia-lat,body.ia-oculto #ia-card,body.ia-oculto .ia-vuela{display:none!important}
+
+/* ---------- Semáforo de gerencia: tarjetas KPI y tablero ejecutivo ---------- */
+.ia-kpi.e-bien{box-shadow:inset 3px 0 0 var(--ia-ok)}
+.ia-kpi.e-atencion{box-shadow:inset 3px 0 0 var(--ia-warn)}
+.ia-kpi.e-mal{box-shadow:inset 3px 0 0 var(--ia-bad)}
+.ia-kpi-v{display:flex;align-items:center;justify-content:space-between;gap:.4rem}
+.ia-spk{flex:none;overflow:visible}
+.ia-spk polyline{fill:none;stroke:var(--color-fg-muted);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
+.ia-spk circle{fill:var(--color-fg)}
+.e-bien .ia-spk circle{fill:var(--ia-ok)}.e-atencion .ia-spk circle{fill:var(--ia-warn)}.e-mal .ia-spk circle{fill:var(--ia-bad)}
+.ia-meta{display:flex;align-items:center;gap:.4rem;margin:.1rem 0 .25rem;font-size:.66rem;color:var(--color-fg-muted)}
+.ia-meta-b{flex:1;height:5px;border-radius:99px;background:rgba(11,11,11,.07);overflow:hidden}
+.ia-meta-b i{display:block;height:100%;border-radius:99px;background:var(--color-fg-muted)}
+.e-bien .ia-meta-b i{background:var(--ia-ok)}.e-atencion .ia-meta-b i{background:var(--ia-warn)}.e-mal .ia-meta-b i{background:var(--ia-bad)}
+.ia-meta span{white-space:nowrap}
+.ia-est{display:inline-flex;align-items:center;gap:.2rem;padding:.05rem .35rem;border-radius:99px;font-size:.62rem;font-weight:600}
+.ia-est svg{width:10px;height:10px}
+.ia-est.e-bien{color:var(--ia-ok);background:var(--ia-ok-bg)}
+.ia-est.e-atencion{color:var(--ia-warn);background:var(--ia-warn-bg)}
+.ia-est.e-mal{color:var(--ia-bad);background:var(--ia-bad-bg)}
+.ia-m.assistant .ia-b:has(.ia-sc){width:100%}
+.ia-sc .ia-blk-h small{display:block;font-weight:400;font-size:.68rem;color:var(--color-fg-muted)}
+.ia-sc-res{display:flex;flex-wrap:wrap;gap:.3rem;padding:.45rem .6rem 0}
+.ia-sc-res span{font-size:.66rem;font-weight:600;padding:.1rem .45rem;border-radius:99px}
+.ia-sc-res .e-bien{color:var(--ia-ok);background:var(--ia-ok-bg)}
+.ia-sc-res .e-atencion{color:var(--ia-warn);background:var(--ia-warn-bg)}
+.ia-sc-res .e-mal{color:var(--ia-bad);background:var(--ia-bad-bg)}
+.ia-sc ul{list-style:none;margin:0;padding:.3rem 0 .2rem}
+.ia-sc li{display:grid;grid-template-columns:22px minmax(0,1fr) auto;align-items:start;gap:.5rem;padding:.45rem .6rem}
+.ia-sc li+li{border-top:1px solid var(--ia-line)}
+.ia-sc li>i{display:grid;place-items:center;width:22px;height:22px;border-radius:7px;color:var(--color-fg-muted);background:#f3f3f1}
+.ia-sc li>i svg{width:13px;height:13px}
+.ia-sc li.e-bien>i{color:var(--ia-ok);background:var(--ia-ok-bg)}
+.ia-sc li.e-atencion>i{color:var(--ia-warn);background:var(--ia-warn-bg)}
+.ia-sc li.e-mal>i{color:var(--ia-bad);background:var(--ia-bad-bg)}
+.ia-sc-n{min-width:0}
+.ia-sc-n b{display:block;font-size:.78rem;font-weight:600;line-height:1.3}
+.ia-sc-n span{display:block;font-size:.68rem;color:var(--color-fg-muted);line-height:1.35;margin-top:.05rem}
+.ia-sc-v{display:grid;grid-template-columns:auto auto;align-items:center;justify-items:end;column-gap:.35rem;text-align:right}
+.ia-sc-v .ia-spk{grid-row:1;grid-column:1}
+.ia-sc-v b{grid-row:1;grid-column:2;font-size:.95rem;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.ia-sc-v span,.ia-sc-v em{grid-column:1/3;font-size:.64rem;color:var(--color-fg-muted);font-style:normal;white-space:nowrap}
+.ia-sc-v em{font-weight:600;text-transform:uppercase;letter-spacing:.04em;font-size:.58rem}
+.ia-sc li.e-bien em{color:var(--ia-ok)}.ia-sc li.e-atencion em{color:var(--ia-warn)}.ia-sc li.e-mal em{color:var(--ia-bad)}
