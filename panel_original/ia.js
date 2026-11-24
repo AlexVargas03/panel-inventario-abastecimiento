@@ -557,8 +557,11 @@
   function barraMeta(valor, meta, fmtK, bueno) {
     if (typeof meta !== 'number' || !meta) return '';
     var r = valor / meta, w = Math.max(0, Math.min(1, r)) * 100;
-    // si lo bueno es bajar (ocupación, obsoleto), la referencia es un límite, no una meta a alcanzar
-    var et = bueno === 'baja' ? 'límite ' + fmt(meta, fmtK) : d3.format('.0%')(r) + ' de ' + fmt(meta, fmtK);
+    // si lo bueno es bajar (ocupación, obsoleto), la referencia es un límite, no una meta a alcanzar;
+    // si la cifra ya es un %, "102 % de 97 %" confunde: se dice "meta 97 %" y la barra muestra el avance
+    var et = bueno === 'baja' ? 'límite ' + fmt(meta, fmtK)
+      : fmtK === 'pct' ? 'meta ' + fmt(meta, fmtK)
+      : d3.format('.0%')(r) + ' de ' + fmt(meta, fmtK);
     return '<div class="ia-meta"><div class="ia-meta-b"><i style="width:' + w.toFixed(1) + '%"></i></div>' +
       '<span>' + esc(et) + '</span></div>';
   }
@@ -1242,7 +1245,8 @@
 
   /* Un hueco [[#n]] del texto se rellena con su bloque (el grafico se crea ya colgado, para medir su ancho) */
   function rellenar(hueco) {
-    if (!hueco.isConnected) return null;
+    // basta con que siga dentro de su burbuja: al repintar el historial la burbuja aún no está en la página
+    if (!hueco.parentNode) return null;
     var el = hueco._fab ? hueco._fab() : null;
     if (el) hueco.replaceWith(el); else hueco.remove();
     return el;
