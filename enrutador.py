@@ -192,21 +192,44 @@ def _ya_esta(control: dict, contexto: dict | None) -> bool:
     return False
 
 
-def faltantes(temas: list[dict], bloques: list[dict], accion: dict, contexto: dict | None) -> str | None:
-    """Qué le faltó a la respuesta (bloque visual o movimiento ligado a la pregunta). None si está completa."""
+PIDE_DETALLE = r"explica|detall|a fondo|por que|porque|analiza|informe|reporte|paso a paso|todo sobre"
+TOPE_PALABRAS, TOPE_DETALLE = 75, 160
+
+
+def palabras(texto: str) -> int:
+    return len(re.sub(r"\[\[\s*#?\d+\s*\]\]", " ", str(texto or "")).split())
+
+
+def faltantes(temas: list[dict], bloques: list[dict], accion: dict, contexto: dict | None,
+              texto: str = "", pregunta: str = "") -> dict | None:
+    """Qué le faltó a la respuesta. None si está completa; si no, {'texto': aviso, 'rehacer': bool}.
+    rehacer=True: el texto anterior se descarta y escribe uno nuevo, armado junto a los bloques
+    (falta un bloque visual o el texto es demasiado largo). Si solo faltó mover el dashboard, se
+    conserva el texto y solo se pide la herramienta."""
     if not temas:
         return None
-    falta = []
+    rehacer, falta = [], []
     if not any(b.get("type") in VISUALES for b in bloques or []):
-        falta.append("no mostraste ningún bloque visual: muestra las cifras clave con " +
-                     " o ".join(t["visual"] for t in temas[:2] if t["visual"]))
+        rehacer.append("no mostraste ningún bloque visual: muestra las cifras clave con " +
+                       " o ".join(t["visual"] for t in temas[:2] if t["visual"]))
+    tope = TOPE_DETALLE if re.search(PIDE_DETALLE, _plano(pregunta)) else TOPE_PALABRAS
+    n = palabras(texto)
+    if n > tope:
+        rehacer.append(f"tu texto es demasiado largo ({n} palabras; máximo {tope}): no recites lo que ya muestran los bloques")
     p = principal(temas)
     movio = any(k for k in (accion or {}) if k not in ("descripcion",))
     if p and not movio and not _ya_esta(p["control"], contexto):
         falta.append(f"no llevaste el dashboard a lo que preguntó: usa controlar_dashboard con "
                      f"{json.dumps(p['control'], ensure_ascii=False)} (ajustado a lo que pide)")
-    if not falta:
+    if not rehacer and not falta:
         return None
-    return ("[Nota del sistema, el usuario no la ve: a tu respuesta le faltó algo: " + "; ".join(falta) +
-            ". Hazlo ahora con las herramientas. No repitas ni reescribas lo que ya escribiste: "
-            "como mucho añade una línea si el bloque necesita contexto.]")
+    if rehacer:
+        return {"rehacer": True, "texto": (
+            "[Nota del sistema, el usuario no la ve: rehaz tu respuesta: " + "; ".join(rehacer + falta) + ". "
+            "Tu texto anterior se DESCARTA y el usuario no lo verá. Primero las herramientas que falten (sin repetir bloques que ya "
+            "mostraste: los que sirvan siguen ahí con su número). Después escribe el texto nuevo y completo, corto y armado con los bloques: "
+            "el titular en una frase, cada bloque en su sitio con [[#n]] sola en una línea, y debajo como mucho una o dos líneas de "
+            "por qué y qué hacer.]")}
+    return {"rehacer": False, "texto": (
+        "[Nota del sistema, el usuario no la ve: " + "; ".join(falta) + ". Hazlo ahora con la herramienta. "
+        "No escribas texto nuevo: tu respuesta ya está bien.]")}

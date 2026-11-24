@@ -818,6 +818,29 @@ def bloque_comparativa(df: pd.DataFrame, titulo: str) -> dict:
     return {"type": "comparativa", "titulo": _txt(titulo, 70) or "Comparativa", "items": nombres.tolist(), "metricas": metricas[:6]}
 
 
+MARCA_BLOQUE = re.compile(r"\[\[\s*#?(\d+)\s*\]\]")
+
+
+def componer(texto: str, bloques: list[dict]) -> str:
+    """Deja el texto listo para intercalar los bloques: cada [[#n]] en su propia línea, solo los que
+    existen y una vez cada uno. Si el modelo no colocó ninguno, los bloques van después del titular
+    (primera línea) y el resto del texto debajo: texto, gráfico, texto."""
+    nums = [b["n"] for b in bloques if b.get("n")]
+    usados: set[int] = set()
+
+    def marca(m):
+        n = int(m.group(1))
+        if n in nums and n not in usados:
+            usados.add(n)
+            return f"\n\n[[#{n}]]\n\n"
+        return ""
+    t = re.sub(r"\n{3,}", "\n\n", MARCA_BLOQUE.sub(marca, str(texto or ""))).strip()
+    if nums and not usados:
+        titular, _, resto = t.partition("\n")
+        t = titular.strip() + "\n\n" + "\n\n".join(f"[[#{n}]]" for n in nums) + ("\n\n" + resto.strip() if resto.strip() else "")
+    return t
+
+
 def ordenar_bloques(bloques: list[dict]) -> list[dict]:
     """Los botones de siguiente paso van siempre al final, y solo un grupo (el último)."""
     acciones = [b for b in bloques if b.get("type") == "acciones"]
@@ -935,7 +958,7 @@ Cómo trabajar:
   1. Consulta de 4 a 8 ángulos que cubran el tema (evolución, ranking, comparativa, alertas…), mostrando cada uno como gráfico, comparativa, KPIs, alertas o tabla. No uses mostrar_como 'ninguno': el informe solo puede incluir bloques que mostraste. Puedes pedir varias herramientas a la vez en un mismo paso.
   2. Llama UNA vez a generar_informe: resumen ejecutivo con 3 a 5 conclusiones y sus cifras, una sección por hallazgo (texto con el porqué y los números de bloque que la sostienen) y recomendaciones con su efecto esperado. En 'nota', di el periodo, las fuentes y lo que los datos no cubren.
   3. En el chat responde solo con 1 o 2 líneas: que el informe está listo y su conclusión principal.
-- No amontones: como mucho dos bloques de datos por respuesta. Una pregunta simple se responde con texto.
+- No amontones: como mucho dos bloques de datos por respuesta, uno por idea. Nunca dos bloques con la misma información (por ejemplo, un gráfico de los 4 almacenes y además alertas de esos mismos 4): elige el que mejor lo muestre.
 - Las cifras de cualquier bloque salen de otra herramienta en este mismo turno; si no las tienes, consúltalas antes.
 - Cuando haya siguientes pasos claros, ponlos con sugerir_acciones (1 a 3 botones) en vez de escribirlos. Cada pregunta del botón tiene que entenderse sola, con su periodo, proveedor o producto. En ese caso no cierres además con una propuesta en el texto.
 - Mueve el dashboard por tu cuenta, sin esperar a que te lo pidan. Si lo que respondes se puede ver ahí, llévalo tú con controlar_dashboard en el mismo turno. Que el usuario tenga que pedírtelo aparte es un fallo tuyo.
@@ -965,8 +988,10 @@ Cómo responder (estilo gerencia: te lee un gerente con poco tiempo):
 - Primera línea = el titular: la conclusión en UNA frase de 20 palabras como mucho, con la cifra clave y contra qué se compara ("Noviembre va 33 % por debajo de la meta a hoy." / "El inventario cubre 1,7 meses de venta: dentro de lo sano."). Con tu tono, sin "Aquí tienes" ni repetir la pregunta.
 - Las cifras van en bloques (tablero_ejecutivo, mostrar_kpis, un gráfico), no en prosa. Si una cifra ya está en un bloque, no la repitas en el texto.
 - TODA respuesta con datos lleva al menos un bloque visual y, si el tema tiene un lugar en el dashboard, lo lleva ahí con controlar_dashboard ajustado a lo que preguntó (empresa, mes, segmento, almacén, proceso). Solo texto para saludos, agradecimientos o preguntas de concepto. Cuando el mensaje traiga una "Guía del sistema", síguela.
-- Debajo del titular, como mucho 3 viñetas de una línea (15 palabras como mucho cada una): por qué pasa (el motor que más pesa) y qué haría gerencia. Empieza por lo concreto: el nombre, la cifra, la acción.
-- Todo tu texto, sin contar los bloques, en 60 palabras o menos. Solo te extiendes si el usuario pide explicación, detalle o un informe.
+- Arma la respuesta intercalada, texto y bloque juntos: titular → [[#n]] (el bloque, sola en su línea, con el número de 'Bloque #n' que te devolvió la herramienta) → una línea que diga qué significa → si hace falta un segundo bloque, [[#m]] y otra línea → qué haría gerencia. Como mucho 3 líneas cortas en total fuera del titular (15 palabras cada una).
+- El texto no repite lo que el bloque ya muestra: nada de una viñeta por almacén, mes o proveedor con sus cifras. Di solo lo que el bloque no dice: la conclusión, la causa y la acción.
+- Todo tu texto, sin contar los bloques, en 60 palabras o menos (se revisa: si te pasas, tendrás que reescribirlo). Solo te extiendes si el usuario pide explicación, detalle o un informe.
+- No comentes cómo escribió el usuario (que el mensaje se cortó, que tiene errores): interpreta lo más probable y responde.
 - Toda cifra lleva su referencia (meta, cuota, mismo periodo del año anterior o umbral) y su estado (bien, atención o mal). Una cifra suelta no le sirve a gerencia.
 - Lenguaje de negocio, sin jerga: "compras" y no "sell in", "ventas" y no "sell out", "meses de inventario" y no "DIO". Nunca nombres de vistas, columnas ni SQL.
 - No expliques cómo calculaste algo salvo que te lo pidan. Sin encabezados ("Resumen:", "Análisis:") ni párrafos.
@@ -1073,8 +1098,9 @@ class Sesion:
             for b in nuevos:
                 n = len(self.numerados) + 1
                 self.numerados[n] = b
+                b["n"] = n                       # el chat lo coloca donde el texto diga [[#n]]
                 marcas.append(f"#{n}")
-            out = f"[Bloque {', '.join(marcas)}]\n" + str(out)
+            out = f"[Bloque {', '.join(marcas)}: colócalo en tu texto con [[{marcas[0]}]] sola en una línea]\n" + str(out)
         return out
 
     def _ejecutar(self, nombre: str, a: dict) -> str:
@@ -1390,10 +1416,13 @@ def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: d
     ult = msgs[-1] if msgs else {}
     c = ult.get("content")
     temas: list[dict] = []
+    pregunta = ""
+    descartados: list[str] = []
     if ult.get("role") == "user" and (isinstance(c, str) or (isinstance(c, list) and not any(b.get("type") == "tool_result" for b in c))):
         bloques = [{"type": "text", "text": c}] if isinstance(c, str) else list(c)
         # De qué trata la pregunta: qué bloque usar y a qué sección del dashboard llevarlo
-        temas = enrutador.detectar(enrutador.texto_usuario(c), gerencia.hoy())
+        pregunta = enrutador.texto_usuario(c)
+        temas = enrutador.detectar(pregunta, gerencia.hoy())
         guia = enrutador.guia(temas)
         msgs[-1] = {"role": "user", "content": bloques + [
             {"type": "text", "text": "[Estado actual del dashboard que ve el usuario]\n" + describir_contexto(contexto, sesion.R, meses_panel(sesion.R, sesion.V))},
@@ -1424,12 +1453,18 @@ def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: d
                 pedido_texto = True
                 msgs.append({"role": "user", "content": [{"type": "text", "text": PEDIR_TEXTO}]})
                 continue
-            # Pregunta de datos respondida solo con texto, o sin llevar el dashboard a lo preguntado:
-            # se le pide UNA vez que lo complete (el movimiento sale de la pregunta, no se mueve por mover)
-            falta = enrutador.faltantes(temas, sesion.bloques, sesion.accion, contexto) if resp.stop_reason == "end_turn" else None
-            if falta and not pedido_recursos:
+            # Pregunta de datos respondida solo con texto, con un texto demasiado largo o sin llevar el
+            # dashboard a lo preguntado: se le pide UNA vez que lo arregle (el movimiento sale de la pregunta).
+            # Si falta un bloque o sobra texto, rehace la respuesta y el texto anterior se descarta: así el
+            # texto nuevo se escribe junto a los bloques, en vez de quedar pegados al final.
+            falta = None
+            if resp.stop_reason == "end_turn" and not pedido_recursos:
+                falta = enrutador.faltantes(temas, sesion.bloques, sesion.accion, contexto, "\n\n".join(textos), pregunta)
+            if falta:
                 pedido_recursos = True
-                msgs.append({"role": "user", "content": [{"type": "text", "text": falta}]})
+                if falta["rehacer"]:
+                    descartados, textos = textos, []
+                msgs.append({"role": "user", "content": [{"type": "text", "text": falta["texto"]}]})
                 continue
             break
         res = []
@@ -1442,8 +1477,10 @@ def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: d
         msgs.append({"role": "user", "content": res})
     else:
         textos = textos or ["Necesité demasiados pasos. Prueba con una pregunta más específica."]
-    texto = "\n\n".join(textos) or texto_de_respaldo(sesion)
-    return {"texto": texto, "bloques": ordenar_bloques(sesion.bloques), "accion": sesion.accion,
+    textos = textos or descartados          # si al rehacer no escribió nada, vale el texto anterior
+    bloques_fin = ordenar_bloques(sesion.bloques)
+    texto = componer("\n\n".join(textos) or texto_de_respaldo(sesion), bloques_fin)
+    return {"texto": texto, "bloques": bloques_fin, "accion": sesion.accion,
             "consultas": sesion.consultas}, msgs
 
 

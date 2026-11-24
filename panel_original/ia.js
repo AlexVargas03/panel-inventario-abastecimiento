@@ -554,11 +554,13 @@
       '<polyline points="' + pts.map(function (q) { return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' ') + '"/>' +
       '<circle cx="' + u[0].toFixed(1) + '" cy="' + u[1].toFixed(1) + '" r="2"/></svg>';
   }
-  function barraMeta(valor, meta, fmtK) {
+  function barraMeta(valor, meta, fmtK, bueno) {
     if (typeof meta !== 'number' || !meta) return '';
     var r = valor / meta, w = Math.max(0, Math.min(1, r)) * 100;
+    // si lo bueno es bajar (ocupación, obsoleto), la referencia es un límite, no una meta a alcanzar
+    var et = bueno === 'baja' ? 'límite ' + fmt(meta, fmtK) : d3.format('.0%')(r) + ' de ' + fmt(meta, fmtK);
     return '<div class="ia-meta"><div class="ia-meta-b"><i style="width:' + w.toFixed(1) + '%"></i></div>' +
-      '<span>' + d3.format('.0%')(r) + ' de ' + esc(fmt(meta, fmtK)) + '</span></div>';
+      '<span>' + esc(et) + '</span></div>';
   }
 
   /* ---------- Tarjetas KPI ----------
@@ -577,7 +579,7 @@
       var e = ESTADO[k.estado] ? ' e-' + ESTADO[k.estado][1] : '';
       return '<div class="ia-kpi' + e + '"><small>' + esc(k.label) + '</small>' +
         '<div class="ia-kpi-v"><b>' + esc(fmt(k.valor, k.fmt)) + '</b>' + sparkline(k.serie) + '</div>' +
-        barraMeta(k.valor, k.meta, k.fmt) +
+        barraMeta(k.valor, k.meta, k.fmt, k.bueno) +
         '<div class="ia-kpi-p">' + chipEstado(k.estado) + d + (k.nota ? '<span>' + esc(k.nota) + '</span>' : '') + '</div></div>';
     }).join('');
     return el;
@@ -1238,16 +1240,32 @@
     if (pegado) msgs.scrollTop = msgs.scrollHeight;
   }
 
+  /* Un hueco [[#n]] del texto se rellena con su bloque (el grafico se crea ya colgado, para medir su ancho) */
+  function rellenar(hueco) {
+    if (!hueco.isConnected) return null;
+    var el = hueco._fab ? hueco._fab() : null;
+    if (el) hueco.replaceWith(el); else hueco.remove();
+    return el;
+  }
+
   function revelar(caja, piezas) {
-    // Vacia los textos ya pintados y guarda sus palabras para irlas devolviendo
-    var nodos = [], w = document.createTreeWalker(caja, NodeFilter.SHOW_TEXT, {
+    // Vacia los textos ya pintados y guarda sus palabras para irlas devolviendo. Los huecos de
+    // bloques ([[#n]] en el texto) entran en el mismo orden: texto, bloque, texto.
+    var nodos = [], w = document.createTreeWalker(caja, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
       acceptNode: function (n) {
+        if (n.nodeType === 1) {
+          if (n.classList.contains('ia-slot')) return NodeFilter.FILTER_ACCEPT;
+          return SALTAR[n.nodeName] ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_SKIP;
+        }
         for (var a = n.parentNode; a && a !== caja; a = a.parentNode) { if (SALTAR[a.nodeName]) return NodeFilter.FILTER_REJECT; }
         return n.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
       }
     });
     while (w.nextNode()) nodos.push(w.currentNode);
-    var plan = nodos.map(function (n) { var t = n.nodeValue.split(/(\s+)/); n.nodeValue = ''; return { n: n, t: t, i: 0 }; });
+    var plan = nodos.map(function (n) {
+      if (n.nodeType === 1) return { hueco: n };
+      var t = n.nodeValue.split(/(\s+)/); n.nodeValue = ''; return { n: n, t: t, i: 0 };
+    });
 
     var k = 0, bi = 0, fin = false;
     var pegado = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 80;
@@ -1257,19 +1275,30 @@
     function completar() {
       if (fin) return;
       fin = true;
-      plan.forEach(function (t) { while (t.i < t.t.length) t.n.nodeValue += t.t[t.i++]; });
+      plan.forEach(function (t) {
+        if (t.hueco) rellenar(t.hueco);
+        else while (t.i < t.t.length) t.n.nodeValue += t.t[t.i++];
+      });
       caja.classList.remove('ia-escribiendo');
       while (bi < piezas.length) caja.appendChild(piezas[bi++]());
       alFondo(pegado);
     }
-    var palabras = plan.reduce(function (a, t) { return a + t.t.length; }, 0);
-    setTimeout(completar, palabras * PASO_PALABRA + piezas.length * PAUSA_BLOQUE + 5000);
+    var palabras = plan.reduce(function (a, t) { return a + (t.t ? t.t.length : 0); }, 0);
+    var huecos = plan.filter(function (t) { return t.hueco; }).length;
+    setTimeout(completar, palabras * PASO_PALABRA + (piezas.length + huecos) * PAUSA_BLOQUE + 5000);
 
     function palabra() {
       if (fin) return;
       if (!caja.isConnected) return completar();   // la reemplazo un repintado
-      while (plan[k] && plan[k].i >= plan[k].t.length) k++;
+      while (plan[k] && !plan[k].hueco && plan[k].i >= plan[k].t.length) k++;
       var t = plan[k];
+      if (t && t.hueco) {                          // llega a un bloque: aparece y sigue escribiendo
+        k++;
+        var el = rellenar(t.hueco);
+        if (el) el.classList.add('ia-entra');
+        alFondo(pegado);
+        return setTimeout(palabra, el ? PAUSA_BLOQUE : 0);
+      }
       if (!t) { caja.classList.remove('ia-escribiendo'); return bloque(); }
       t.n.nodeValue += t.t[t.i++];
       if (t.i < t.t.length && /^\s+$/.test(t.t[t.i])) t.n.nodeValue += t.t[t.i++];
@@ -1329,12 +1358,22 @@
       var tx = document.createElement('div'); tx.textContent = m.texto; x.b.appendChild(tx);
       return x.m;
     }
-    x.b.innerHTML = md(m.texto);
-
     // Cada pieza es una fabrica: se construye en el momento de colgarla
-    var piezas = (m.bloques || []).map(function (b) {
-      return function () { return BLOQUES[b.type] ? BLOQUES[b.type](b) : bloqueGrafico(b, false); };
+    var fab = function (b) { return function () { return BLOQUES[b.type] ? BLOQUES[b.type](b) : bloqueGrafico(b, false); }; };
+    // Los bloques que el texto coloca con [[#n]] van en su sitio (texto, bloque, texto); el resto, al final
+    var porN = {}, puestos = {};
+    (m.bloques || []).forEach(function (b) { if (b.n) porN[b.n] = b; });
+    var conHuecos = String(m.texto || '').replace(/^[ \t]*\[\[\s*#?(\d+)\s*\]\][ \t]*$/gm, function (_, n) {
+      return porN[n] ? '\n\n%%IAHUECO' + n + '%%\n\n' : '';
     });
+    x.b.innerHTML = md(conHuecos)
+      .replace(/<p>\s*%%IAHUECO(\d+)%%\s*<\/p>/g, '<div class="ia-slot" data-n="$1"></div>')
+      .replace(/%%IAHUECO(\d+)%%/g, '<div class="ia-slot" data-n="$1"></div>');
+    [].forEach.call(x.b.querySelectorAll('.ia-slot'), function (h) {
+      var b = porN[h.dataset.n];
+      if (b && !puestos[h.dataset.n]) { puestos[h.dataset.n] = 1; h._fab = fab(b); } else h.remove();
+    });
+    var piezas = (m.bloques || []).filter(function (b) { return !(b.n && puestos[b.n]); }).map(fab);
     if (m.accion_desc && m.accion_desc.length) piezas.push(function () {
       var a = document.createElement('div'); a.className = 'ia-act';
       a.innerHTML = IC.ok + '<span>Dashboard: ' + esc(m.accion_desc.join(' · ')) + '</span>'; return a;
@@ -1350,7 +1389,10 @@
     // La animacion no arranca aqui: la burbuja todavia no esta en el documento.
     // pintar() la lanza justo despues de colgarla (ver colgar()).
     if (m.id && !st.animados[m.id]) { st.animados[m.id] = 1; x.m.animar = function () { revelar(x.b, piezas); }; }
-    else piezas.forEach(function (f) { x.b.appendChild(f()); });
+    else {
+      [].forEach.call(x.b.querySelectorAll('.ia-slot'), rellenar);
+      piezas.forEach(function (f) { x.b.appendChild(f()); });
+    }
     return x.m;
   }
   /* Cuelga el mensaje y solo entonces lo anima: fuera del documento no se puede
