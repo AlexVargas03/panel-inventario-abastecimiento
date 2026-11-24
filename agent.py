@@ -729,7 +729,17 @@ def bloque_acciones(a: dict) -> dict:
 BLOQUES_SIMPLES = {"mostrar_kpis": bloque_kpis, "mostrar_alertas": bloque_alertas, "mostrar_ficha": bloque_ficha, "sugerir_acciones": bloque_acciones}
 
 
-COLUMNAS_BAJA = ("costo", "dias", "obsoleto", "quiebre", "devol")
+COLUMNAS_BAJA = ("costo", "dias", "obsoleto", "quiebre", "devol", "diferencia", "dif_abs", "faltante", "merma")
+# en un conteo el neto de diferencias es mejor cuanto más cerca de cero (ni sobra ni falta)
+COLUMNAS_CERO = ("neto",)
+
+
+def _bueno(col: str, cols: list[str]) -> str:
+    c = col.lower()
+    conteo = any("diferencia" in x.lower() or "dif_" in x.lower() for x in cols)
+    if conteo and any(k in c for k in COLUMNAS_CERO):
+        return "cero"
+    return "baja" if any(k in c for k in COLUMNAS_BAJA) else "sube"
 
 
 def _bonito(c: str) -> str:
@@ -812,7 +822,7 @@ def bloque_comparativa(df: pd.DataFrame, titulo: str) -> dict:
             continue
         f = formato_col(c)
         metricas.append({"label": _bonito(c), "fmt": f if f in FORMATOS_BLOQUE else "int", "valores": vals,
-                         "bueno": "baja" if any(k in c.lower() for k in COLUMNAS_BAJA) else "sube"})
+                         "bueno": _bueno(c, [str(x) for x in df.columns])})
     if len(metricas) < 1:
         raise ValueError("la comparativa necesita columnas numéricas (las métricas).")
     return {"type": "comparativa", "titulo": _txt(titulo, 70) or "Comparativa", "items": nombres.tolist(), "metricas": metricas[:6]}
