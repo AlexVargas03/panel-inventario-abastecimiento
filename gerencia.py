@@ -53,6 +53,24 @@ def corte_desde_modificado(modificado: str | None) -> date | None:
     return m.date() if m.hour >= HORA_CIERRE else m.date() - timedelta(days=1)
 
 
+_FECHAS_ARCHIVOS: dict[str, datetime] = {}
+
+
+def fijar_fechas_archivos(modificados: dict[str, str]) -> None:
+    """Fecha y hora (Lima) de la última modificación de cada archivo de SharePoint, por clave (abc_xyz, ventas_canal…)."""
+    _FECHAS_ARCHIVOS.clear()
+    for clave, txt in (modificados or {}).items():
+        try:
+            m = datetime.fromisoformat(str(txt).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        _FECHAS_ARCHIVOS[clave] = (m if m.tzinfo else m.replace(tzinfo=timezone.utc)).astimezone(LIMA)
+
+
+def fecha_archivo(clave: str) -> datetime | None:
+    return _FECHAS_ARCHIVOS.get(clave)
+
+
 def fijar_corte_ventas(corte: date | None) -> None:
     global _CORTE_VENTAS
     _CORTE_VENTAS = corte

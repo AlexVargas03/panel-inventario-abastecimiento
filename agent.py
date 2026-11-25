@@ -203,7 +203,13 @@ def vistas(ds: dict, R: dict) -> dict[str, tuple[pd.DataFrame, str]]:
         "vw_proveedor_inventario": (R["pl_prov"], "Por proveedor: inventario (valor), m3, costo_dia (costo de venta diario sin IGV tienda 01 últimos 3 meses), dias (días de inventario; NULL = sin venta), venta, margen (0–1)."),
         "vw_abc": (R["abc_seg"], "Productos con stock del archivo ABC-XYZ por empresa (ALFA/TORU): segmento, stock, valor, cajas, m3, medidas."),
         "vw_abc_venta": (abc_venta, "Todos los productos del archivo ABC-XYZ (con o sin stock) por empresa: sku, producto, categoria, segmento, stock, valor, venta_mes (venta promedio mensual) y pct_venta (participación en la venta de su empresa, 0–1). Es la base del '% de venta' de las cartillas ABC-XYZ: % de venta de un segmento = SUM(venta_mes) del segmento ÷ SUM(venta_mes) de la empresa."),
-        "vw_matriz_abc": (R["matriz_abc"], "Matriz ABC-XYZ por empresa (emp = ALFA, TORU, all) y clase: productos, valor, m3, cajas, sin_medidas, pct_valor, pct_m3 (0–1)."),
+        "vw_matriz_abc": (matriz_abc_bot(abc_venta, R["abc_seg"]),
+                          "Matriz ABC-XYZ (archivo dashboard_abcxyz, el mismo de la matriz del panel) por empresa (emp = ALFA, TORU, all = Alfa Corp) y segmento "
+                          "(AX…CZ, SC = sin clase, TOTAL): productos (con stock), valor_inventario (stock valorizado a costo, solo stock > 0), pct_valor, "
+                          "venta_mes (venta promedio mensual de 90 días, de todos los productos del segmento), pct_venta, brecha_pts (pct_valor − pct_venta, en puntos: "
+                          "+ = sobrestock, − = vende más de lo que tiene), cobertura_meses (valor ÷ venta_mes, aproximada: costo vs precio), m3, pct_m3, cajas, "
+                          "sin_medidas (productos sin medidas: cuentan 0 m³), revisar (1 = ocupa mucho más espacio del que vale) y politica (acción recomendada). "
+                          "Los % se calculan dentro de cada empresa (0–1)."),
         "vw_matriz_clase": (R["matriz_cl"], "Matriz por clase XYZABC del inventario ALFA: productos, valor, pct_valor, m3, pct_m3, cajas."),
         "vw_compras_ventas_inv": (compras_inv, "Compras, ventas e inventario por empresa (ALFA, TORU) y mes (YYYY-MM), de dashboard_compras_ventas_inv (fuente de la sección 'Compras, ventas e inventario' del Panel de control): compra (sell in), venta (sell out), inventario (valor del inventario del mes; solo en los meses que lo traen) y compra_venta (compra ÷ venta). Alfa Corp = ALFA + TORU (súmalas). NULL = ese mes no trae el dato."),
         "vw_ventas_canal": (ventas_canal, "Venta mensual por empresa (ALFA, TORU; Alfa Corp = la suma de las dos) desde 2021, de dashboard_evolucion_ventas (es la fuente del gráfico 'Ventas por mes' del Panel de control): mes (YYYY-MM), anio, venta por canal (inmediato, por_recoger, express, reparto, web, otros; en el gráfico Tiendas = inmediato + por_recoger + express, Distribución = reparto, E-commerce = web), venta_total, costo_total, margen, margen_pct (en %, 0–100), cuota (meta mensual, solo desde 2026; NULL = sin meta), diferencia (venta − cuota), cumplimiento (%) y estado. Úsala para ventas por año, por canal, contra cuota o anteriores a 2026; vw_ventas solo cubre ene–sep 2026 pero tiene proveedores, tickets y unidades."),
@@ -273,6 +279,96 @@ def _agg_ventas(df: pd.DataFrame, by: list[str], metrica: str) -> pd.DataFrame:
     return g.rename(columns={"venta": "total_ventas", "costo_igv": "costo"})
 
 
+# ----------------------------------------------------------------------------
+# ABC-XYZ: siempre desde el archivo dashboard_abcxyz (el de la matriz del panel), nunca la 'clase' del inventario
+# ----------------------------------------------------------------------------
+POLITICA_ABC = {
+    "AX": "Prioridad máxima: asegurar el abastecimiento y que nunca falte; reposición automática con nivel de servicio alto (95 %).",
+    "AY": "Mantener stock de seguridad (servicio 95 %) y revisar el patrón o la estacionalidad.",
+    "AZ": "Seguimiento cercano: pedidos más frecuentes en lotes chicos y revisar si los picos son licitaciones.",
+    "BX": "Reposición simple y automática (servicio 90 %).",
+    "BY": "Revisar con regularidad y ajustar el stock a la estacionalidad.",
+    "BZ": "Stock ajustado; comprar bajo pedido cuando se pueda.",
+    "CX": "Mantener simple y sin exceso de stock (servicio 85 %).",
+    "CY": "Comprar bajo pedido si se puede y vigilar el stock.",
+    "CZ": "Candidatos a descontinuar: liquidar el stock y no reponer.",
+    "SC": "Pendiente de clasificar: revisar si son productos nuevos o sin movimiento.",
+}
+NOMBRE_EMP_ABC = {"all": "Alfa Corp", "ALFA": "ALFA", "TORU": "TORU"}
+
+
+def _emp_abc(v) -> str:
+    t = _norm(v or "all").replace(" ", "")
+    return "TORU" if t == "toru" else "ALFA" if t == "alfa" else "all"
+
+
+def resumen_abc(abc_venta: pd.DataFrame, abc_seg: pd.DataFrame, empresa: str = "all", total: bool = False) -> pd.DataFrame:
+    """Una fila por segmento: stock (solo stock > 0), venta (todos los productos), sus % dentro de la empresa,
+    brecha, cobertura, espacio, la etiqueta 'revisar' y la política. Mismas reglas que la matriz del panel."""
+    v = abc_venta if empresa == "all" else abc_venta[abc_venta["empresa"] == empresa]
+    s = abc_seg if empresa == "all" else abc_seg[abc_seg["empresa"] == empresa]
+    tv, tvt, tm = s["valor"].sum(), v["venta_mes"].fillna(0).sum(), s["m3"].sum()
+    filas = []
+    for seg in calc.SEGMENTOS + ["SC"] + (["TOTAL"] if total else []):
+        a = s if seg == "TOTAL" else s[s["segmento"] == seg]
+        b = v if seg == "TOTAL" else v[v["segmento"] == seg]
+        if a.empty and b.empty:
+            continue
+        valor, venta, m3 = float(a["valor"].sum()), float(b["venta_mes"].fillna(0).sum()), float(a["m3"].sum())
+        pv, pvt, pm = (valor / tv if tv else 0.0), (venta / tvt if tvt else 0.0), (m3 / tm if tm else 0.0)
+        filas.append({"segmento": seg, "productos": int(len(a)), "valor_inventario": valor, "pct_valor": pv,
+                      "venta_mes": venta, "pct_venta": pvt, "brecha_pts": round((pv - pvt) * 100, 1),
+                      "cobertura_meses": round(valor / venta, 1) if venta else None, "m3": m3, "pct_m3": pm,
+                      "cajas": int(a["cajas"].sum()), "stock_unidades": float(a["stock"].sum()), "sin_medidas": int((a["medidas"] == 0).sum()),
+                      "revisar": int(pm >= 0.01 and pm > 1.5 * pv) if seg != "TOTAL" else 0,
+                      "politica": POLITICA_ABC.get(seg, "")})
+    return pd.DataFrame(filas)
+
+
+def matriz_abc_bot(abc_venta: pd.DataFrame, abc_seg: pd.DataFrame) -> pd.DataFrame:
+    partes = [resumen_abc(abc_venta, abc_seg, e, total=True).assign(emp=e) for e in ("ALFA", "TORU", "all")]
+    d = pd.concat(partes, ignore_index=True)
+    return d[["emp"] + [c for c in d.columns if c != "emp"]]
+
+
+MET_ABC = {"total_ventas": "venta_mes", "valor_inventario": "valor_inventario", "m3": "m3", "productos": "productos",
+           "cajas": "cajas", "stock_unidades": "stock_unidades"}
+
+
+def consulta_abc(V: dict, dim: str, met: str, f: dict) -> tuple[pd.DataFrame, str, list[str]]:
+    """Consultas por segmento o filtradas por segmento: salen del archivo ABC-XYZ para cuadrar con la matriz del panel."""
+    if met not in MET_ABC:
+        raise ValueError("Con segmentos ABC-XYZ solo hay venta mensual promedio (total_ventas) e inventario "
+                         "(valor_inventario, m3, productos, cajas, stock_unidades).")
+    emp = _emp_abc(f.pop("empresa", None))
+    nota = [f"Archivo ABC-XYZ · {NOMBRE_EMP_ABC[emp]} · venta = promedio mensual de los últimos 90 días; stock solo de productos con stock."]
+    av, sg = V["vw_abc_venta"][0], V["vw_abc"][0]
+    for k, val in f.items():
+        if k in ("segmento", "categoria"):
+            ok = lambda df: df[df[k].map(_clave).str.contains(_clave(val), regex=False)] if k != "segmento" else df[df[k] == str(val).strip().upper()]
+            av, sg = ok(av), ok(sg)
+    if dim == "segmento":
+        g = resumen_abc(av, sg, emp)
+        if "segmento" in f:
+            g = g[g["segmento"] == str(f["segmento"]).strip().upper()]
+        return g, MET_ABC[met], nota
+    # productos o categorías de un segmento: venta de todos, stock y m3 de los que tienen stock
+    v = av if emp == "all" else av[av["empresa"] == emp]
+    s = sg if emp == "all" else sg[sg["empresa"] == emp]
+    m3 = s.groupby("sku")["m3"].sum()
+    d = v.assign(valor_inventario=v["valor"].where(v["stock"] > 0, 0).fillna(0), stock_unidades=v["stock"].clip(lower=0).fillna(0),
+                 m3=v["sku"].map(m3).fillna(0), productos=1, venta_mes=v["venta_mes"].fillna(0))
+    by = ["sku", "producto", "segmento"] if dim == "producto" else ["categoria"] if dim == "categoria" else [dim] if dim in d.columns else []
+    if not by:
+        raise ValueError(f"Con filtro de segmento solo se puede agrupar por producto, categoría o segmento (no por {dim}).")
+    g = d.groupby(by, as_index=False).agg(valor_inventario=("valor_inventario", "sum"), venta_mes=("venta_mes", "sum"),
+                                         stock_unidades=("stock_unidades", "sum"), m3=("m3", "sum"), productos=("productos", "sum"))
+    g["cobertura_meses"] = np.where(g["venta_mes"] > 0, (g["valor_inventario"] / g["venta_mes"].where(g["venta_mes"] > 0, 1)).round(1), np.nan)
+    if dim == "producto":
+        g = g.drop(columns=["productos"])
+    return g, MET_ABC[met], nota
+
+
 def query_business_database(V: dict, meses: list[str], dimension: str, metric: str, date_range=None, filtros=None,
                             top_n=15, orden="desc") -> dict:
     dim = ALIAS_DIM.get(_norm(dimension), _norm(dimension))
@@ -295,7 +391,14 @@ def query_business_database(V: dict, meses: list[str], dimension: str, metric: s
         return df
 
     by = [] if dim == "total" else [dim]
-    if met in METRICAS_VENTA:
+    if dim == "segmento" or (f.get("segmento") and dim in ("producto", "categoria")):
+        # ABC-XYZ: siempre del archivo de la matriz del panel (nunca la 'clase' del inventario)
+        g, met, mas = consulta_abc(V, dim, met, f)
+        notas += mas
+        by = ["sku", "producto", "segmento"] if dim == "producto" else [dim]
+        periodo_txt = "foto del archivo ABC-XYZ"
+        unidad = "abc"
+    elif met in METRICAS_VENTA:
         if dim in ("tienda", "empresa"):
             src = V["vw_ventas_tienda"][0]
             src = filtrar(src[src["mes"].isin(sel)])
@@ -368,7 +471,7 @@ def query_business_database(V: dict, meses: list[str], dimension: str, metric: s
         g = g.sort_values(sort_col, ascending=(_norm(orden) == "asc"), na_position="last")
     total_filas = len(g)
     aditivas = {"total_ventas", "costo", "margen", "unidades", "valor_inventario", "m3", "productos", "cajas", "obsoleto_valor", "obsoleto_productos"}
-    if met in aditivas and met in g.columns and dim not in ("total",):
+    if met in aditivas and met in g.columns and dim not in ("total",) and unidad != "abc":
         tot = g[met].sum()
         g["part"] = g[met] / tot if tot else np.nan
     if top_n and dim != "mes":
@@ -389,7 +492,7 @@ def query_business_database(V: dict, meses: list[str], dimension: str, metric: s
 # ----------------------------------------------------------------------------
 def formato_col(c: str) -> str:
     c = c.lower()
-    if c in ("part", "uso_almacen", "pct", "margen_pct", "pct_valor", "pct_m3") or c.endswith("_pct"):
+    if c in ("part", "uso_almacen", "pct", "margen_pct", "pct_valor", "pct_m3") or c.endswith("_pct") or c.startswith("pct_"):
         return "pct"
     if any(k in c for k in ("venta", "costo", "valor", "inventario", "monto", "ticket_promedio", "precio", "margen_soles")) or c in ("margen", "obsoleto_valor"):
         return "money"
@@ -434,7 +537,7 @@ HERRAMIENTAS = [
             "dimension": {"type": "string", "description": "Dimensión de agrupación (ej: 'proveedor', 'mes', 'canal', 'categoria', 'segmento', 'tienda', 'producto')"},
             "metric": {"type": "string", "description": "Métrica (ej: 'total_ventas', 'margen_pct', 'unidades', 'valor_inventario', 'dias_inventario')"},
             "date_range": {"type": "string", "description": "Rango para métricas de venta: 'all', 'ultimo_mes', 'mes_anterior', 'ultimos_3_meses', 'Q2-2026', '2026-06', '2026-04:2026-06'. Si el usuario no lo dice, usa el periodo activo del dashboard."},
-            "filtros": {"type": "object", "description": "Filtros opcionales por texto: proveedor, canal, categoria, empresa (ALFA/TORU), segmento (AX…CZ), estado, interco (0/1).",
+            "filtros": {"type": "object", "description": "Filtros opcionales por texto: proveedor, canal, categoria, empresa (ALFA/TORU), segmento (AX…CZ), estado, interco (0/1). Con dimension 'segmento', o con filtro segmento y dimension producto/categoria, los datos salen del archivo ABC-XYZ: venta mensual promedio (total_ventas), stock, % stock, % venta, brecha, cobertura y política; sin empresa = Alfa Corp.",
                         "properties": {"proveedor": {"type": "string"}, "canal": {"type": "string"}, "categoria": {"type": "string"}, "empresa": {"type": "string"},
                                        "segmento": {"type": "string"}, "estado": {"type": "string"}, "interco": {"type": "integer"}}},
             "top_n": {"type": "integer", "description": "Cuántas filas mostrar (por defecto 15; 0 = todas)"},
@@ -860,12 +963,24 @@ def ordenar_bloques(bloques: list[dict]) -> list[dict]:
 REGLAS = """Reglas del negocio:
 - Moneda: soles (S/). La venta del sell out es CON IGV; el costo se compara con IGV (costo sin IGV × 1.18). Margen = venta − costo con IGV; margen % = margen ÷ venta.
 - El valor del inventario (Stock Valorizado) es a costo sin IGV. ALFA = tienda '01', TORU = tienda '02'. Los códigos TORU llevan una T delante del código ALFA.
-- ABC = importancia por venta acumulada (A hasta 80 %, B hasta 95 %, C el resto); XYZ = estabilidad de la demanda (X estable, Y variable, Z errática). CZ = candidatos a descontinuar.
+- ABC-XYZ (segmento de dos letras; ver "Matriz ABC-XYZ" más abajo). ABC = importancia por venta acumulada; XYZ = estabilidad de la demanda. CZ = candidatos a descontinuar.
 - Un almacén con 85 % de uso o más está "por llenarse". Días de inventario: hasta 60 bien, 61–120 atención, más de 120 o sin venta = alto.
 - Obsoleto = descontinuado, clase CZ o sin venta en los 180 días previos al último día del sell out.
 - El conteo cíclico se analiza con todo su historial: el histórico acumulado (procesos que ya no vienen en el archivo de SharePoint) más el archivo vigente; si un proceso viene en ambos, manda el vigente.
 - Conteo cíclico: el conteo final es el segundo reconteo si lo hay; si no, el primero; si no, el conteo. Diferencia = conteo final − stock del sistema (negativa = faltante, positiva = sobrante). Valorización = diferencia × costo unitario. Exactitud en unidades = 1 − Σ|diferencia| ÷ Σ stock; exactitud por artículo = artículos sin diferencia ÷ artículos con stock o conteo (los que están en cero en ambos no cuentan); con tolerancia ±1 ud se perdonan diferencias de una unidad. Prioridad de la diferencia: alta ≥ 8 uds, media 3–7, baja 1–2. Las causas se registran a mano; sin causa, la diferencia está "Por analizar".
 - No hay datos de compras, devoluciones, clientes ni regiones: si te los piden, dilo y ofrece lo más cercano (proveedor, canal, tienda)."""
+
+ABC_XYZ = """Matriz ABC-XYZ (política de inventario por producto):
+- Fuente: SIEMPRE el archivo dashboard_abcxyz (vw_abc_venta, vw_abc, vw_matriz_abc, o query_business_database con dimension 'segmento' o filtro segmento), el mismo de la matriz del panel. NUNCA la columna 'clase' de vw_inventario ni vw_matriz_clase: es otra clasificación, más antigua, y da cifras distintas.
+- ABC (Pareto sobre la venta en soles): se ordenan los productos de mayor a menor venta y se acumula el %: A hasta 80 % (pocos productos, la mayor parte del negocio), B de 80 a 95 %, C el 5 % restante (la cola larga).
+- XYZ (predictibilidad, variabilidad mes a mes): X estable (fácil de pronosticar), Y variable o estacional con patrón, Z errática (meses sin venta, picos sueltos como licitaciones, o poca historia). Se calcula con el coeficiente de variación de la venta mensual (CV = desviación estándar ÷ promedio) y la frecuencia de meses con venta, en el SP usp_ABC_XYZ_Clasificacion sobre ALFA_SELL_OUT_DATAHISTORICA (excluye códigos que empiezan con 15, 18 y 19). No tienes los cortes exactos del CV: si te los piden, di "El segmento XYZ viene precalculado del SP de clasificación según la variabilidad mensual de la venta; no tengo los cortes exactos."
+- Nivel de servicio (stock de seguridad) por clase: A 95 %, B 90 %, C 85 %.
+- Política por segmento: AX prioridad máxima, que nunca falte, reposición automática · AY stock de seguridad y revisar estacionalidad · AZ seguimiento cercano, pedidos frecuentes en lotes chicos, revisar si los picos son licitaciones · BX reposición simple y automática · BY revisar con regularidad y ajustar a la estacionalidad · BZ stock ajustado, comprar bajo pedido · CX simple y sin exceso · CY comprar bajo pedido y vigilar · CZ candidatos a descontinuar: liquidar y no reponer · SC (sin clase) pendiente de clasificar: ver si son nuevos o sin movimiento.
+- Reglas de cálculo (como el panel): stock y valor solo de productos con stock > 0; la venta (venta_mes = venta promedio mensual de los últimos 90 días) de TODOS los productos del segmento; los % se calculan dentro de cada empresa (ALFA, TORU y Alfa Corp por separado); m³ = cajas × m³ del MasterPack (sin medidas = 0 m³, avísalo). Sin empresa indicada: responde con Alfa Corp y el detalle de ALFA y TORU.
+- Indicadores (ya vienen calculados en vw_matriz_abc y en la consulta por segmento): brecha = % stock − % venta en puntos (+ sobrestock, − vende más de lo que tiene, riesgo de quiebre); cobertura = valor ÷ venta_mes en meses (aproximada: costo vs precio); "revisar" = pct_m3 ≥ 1 % y pct_m3 > 1.5 × pct_valor (ocupa más espacio del que vale); concentración A = % de la venta en AX+AY+AZ (sano cerca del 80 %); peso de CZ = sus productos, soles, m³ y % (dinero y espacio que se puede liberar).
+- Una buena respuesta ABC-XYZ, siempre con cifras y diciendo la empresa: (1) resumen en 1–2 líneas: stock valorizado, venta mensual y la conclusión; (2) concentración en A y si es sana; (3) las 2–3 brechas más grandes (sobrestock y lo que vende más de lo que tiene); (4) CZ: productos, soles, m³ y % del almacén que se pueden liberar; (5) espacio: segmentos "revisar" y productos sin medidas; (6) acciones por segmento con números ("liquidar S/ 514 mil de CZ en ALFA"); (7) siguiente paso (top de CZ por valor, AX con poca cobertura). Formato: una tabla corta (segmento | % stock | % venta | brecha | acción, con query_business_database dimension 'segmento' y mostrar_como 'tabla') y viñetas que la interpreten. Mapa de calor 3×3 solo si lo piden. Para una pregunta puntual ("¿qué es AZ?") basta con significado, política y sus cifras actuales.
+- Preguntas típicas: "¿dónde tengo sobrestock?" → segmentos por brecha y luego productos de esos segmentos por valor; "¿qué descontinúo?" → CZ con stock por valor y m³, con el total liberable; "¿qué no puede faltar?" → AX y AY con cobertura, marcando las bajas; "ALFA vs TORU" → mismas métricas lado a lado (los % son dentro de cada empresa); "¿por qué este producto es Z?" → venta mensual irregular (CV alto o pocos meses con venta); si no tienes su venta mes a mes, di que viene precalculado.
+- Advertencias: el stock está a costo y la venta a precio, así que compáralos en % o como cobertura aproximada; TORU tiene muchos CZ sin stock (están por venta histórica): para stock cuenta solo stock > 0; el segmento es una foto del momento en que se generó el archivo (no hay tendencia); las licitaciones pueden volver Z a un producto estable, no se maneja estacionalidad y los productos nuevos caen en Z o Sin clase. Nunca digas que no hay datos de venta por segmento: están en venta_mes."""
 
 
 # ----------------------------------------------------------------------------
@@ -875,7 +990,8 @@ def linea_corte() -> str:
     """Hoy y el último día con ventas cargadas: el mes en curso se compara contra la meta a ese día, no a hoy."""
     h, c = gerencia.hoy(), gerencia.corte_ventas()
     return (f"- Hoy es {h.day} de {MESES_ES[h.month - 1]} de {h.year}. Ventas cargadas hasta el {c.day} de {MESES_ES[c.month - 1]} "
-            "(la venta del día se sube en la noche): el avance y la meta del mes en curso se miden hasta ese día.")
+            "(la venta del día se sube en la noche): el avance y la meta del mes en curso se miden hasta ese día."
+            + (f" Archivo ABC-XYZ generado el {f.day} de {MESES_ES[f.month - 1]} de {f.year} a las {f:%H:%M}." if (f := gerencia.fecha_archivo('abc_xyz')) else ""))
 
 
 def describir_contexto(ctx: dict | None, R: dict, meses_p: list[str] | None = None) -> str:
@@ -1084,6 +1200,8 @@ Vistas disponibles (DuckDB; códigos como texto con ceros a la izquierda):
 
 {REGLAS}
 
+{ABC_XYZ}
+
 Cifras clave:
 {resumen_kpis(R)}"""
 
@@ -1171,7 +1289,11 @@ class Sesion:
                 modo = elegir_visual(r["dimension"], df)
             if modo != "ninguno":
                 titulo = a.get("titulo") or f"{r['metrica'].replace('_', ' ')} por {r['dimension']}"
-                self.bloques.append(visual_desde_df(modo, df, r["metrica"], titulo, nota, r["total_filas"], r["dimension"]))
+                vis = df
+                if r.get("unidad") == "abc" and r["dimension"] == "segmento" and modo == "tabla":
+                    # la tabla del chat va corta: segmento | % stock | % venta | brecha | acción
+                    vis = df[[c for c in ("segmento", "pct_valor", "pct_venta", "brecha_pts", "valor_inventario", "venta_mes", "politica") if c in df.columns]]
+                self.bloques.append(visual_desde_df(modo, vis, r["metrica"], titulo, nota, r["total_filas"], r["dimension"]))
                 nota = f"[Mostrado al usuario como {modo}] " + nota
             self.consultas.append({"herramienta": nombre, "detalle": json.dumps({k: v for k, v in a.items() if k != "titulo"}, ensure_ascii=False)})
             return f"{nota}\n{r['total_filas']} filas en total (se muestran {len(df)}).\n" + df_texto(df)

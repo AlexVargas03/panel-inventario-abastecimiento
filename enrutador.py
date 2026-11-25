@@ -113,7 +113,8 @@ def detectar(pregunta: str, hoy: date | None = None) -> list[dict]:
             if seg:
                 ctrl["abc_segmento"] = seg.group(1).upper()
             t["control"] = ctrl
-            t["visual"] = "mostrar_comparativa o un mapa de calor/barras por segmento"
+            t["visual"] = ("query_business_database con dimension 'segmento' (empresa en filtros) y mostrar_como 'tabla' "
+                           "(segmento | % stock | % venta | brecha | acción), interpretada en viñetas; mapa de calor solo si lo piden")
             t["lugar"] = LUGAR[ctrl["pestana"]]
         elif tema == "almacen":
             ctrl = {"pestana": "almacen"}

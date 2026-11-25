@@ -168,6 +168,7 @@ _mod_ventas = None
 if info_sp and not info_sp.get("fallo") and "ventas_canal" not in subidos:
     _mod_ventas = info_sp.get("archivos", {}).get("ventas_canal", {}).get("modificado")
 gerencia.fijar_corte_ventas(gerencia.corte_desde_modificado(_mod_ventas))
+gerencia.fijar_fechas_archivos({k: a.get("modificado") for k, a in (info_sp or {}).get("archivos", {}).items() if k not in subidos})
 corte_ventas = gerencia.corte_ventas().isoformat()
 
 try:
