@@ -871,6 +871,13 @@ REGLAS = """Reglas del negocio:
 # ----------------------------------------------------------------------------
 # Contexto del dashboard
 # ----------------------------------------------------------------------------
+def linea_corte() -> str:
+    """Hoy y el último día con ventas cargadas: el mes en curso se compara contra la meta a ese día, no a hoy."""
+    h, c = gerencia.hoy(), gerencia.corte_ventas()
+    return (f"- Hoy es {h.day} de {MESES_ES[h.month - 1]} de {h.year}. Ventas cargadas hasta el {c.day} de {MESES_ES[c.month - 1]} "
+            "(la venta del día se sube en la noche): el avance y la meta del mes en curso se miden hasta ese día.")
+
+
 def describir_contexto(ctx: dict | None, R: dict, meses_p: list[str] | None = None) -> str:
     if not ctx:
         return "El usuario aún no movió filtros: el dashboard está en Panel de control, todo el periodo, todos los proveedores, matriz ABC de ALFA."
@@ -961,7 +968,16 @@ Cómo se arma tu respuesta:
 
 Cómo trabajar:
 - Nunca inventes cifras: sácalas con las herramientas.
-- Muestra los datos de forma visual. La tabla es el ÚLTIMO recurso: un gráfico o una comparativa se entienden de un vistazo; una tabla obliga a leer cifra por cifra.
+- Primero decide qué tipo de pregunta es:
+  · Pide cifras, el estado o resultados ("¿cómo van las ventas?", "top proveedores", "¿cuánto obsoleto hay?") → respuesta de datos: la conclusión en una frase y un bloque visual que la sostenga.
+  · Pregunta cómo se calcula algo, qué considera, por qué sale una cifra o si un criterio es correcto ("¿la meta cuenta el día de hoy?", "¿por qué el cumplimiento sale 84 %?") → respuesta explicativa para gerencia. NO pongas KPIs ni comparativas por ponerlas: un bloque solo si aclara algo que el texto no puede.
+- Respuesta explicativa para gerencia, así:
+  1. La respuesta directa en una frase (sí/no, qué considera).
+  2. La fórmula escrita con palabras y símbolos (Meta al día = Cuota × días hábiles transcurridos ÷ días hábiles del mes).
+  3. El cálculo con los números reales de este mes, paso a paso (consúltalos con tus herramientas): S/ 6.0 M × 20 ÷ 25 = S/ 4.8 M.
+  4. Qué significa para el negocio y, si hay un matiz o un riesgo de mala lectura, dilo (por ejemplo, contar un día sin ventas cargadas hace ver un atraso que no existe).
+  Puedes usar hasta 200 palabras, en viñetas cortas; las cifras en negrita.
+- Muestra los datos de forma visual cuando la respuesta es de datos. La tabla es el ÚLTIMO recurso: un gráfico o una comparativa se entienden de un vistazo; una tabla obliga a leer cifra por cifra.
 - Elige la forma según lo que pregunta el usuario:
   · comparar 2 o 3 cosas (dos meses, ALFA vs TORU, dos proveedores) en varias métricas → mostrar_comparativa.
   · ranking, top N o comparar categorías en una métrica → barras horizontales (query_business_database con mostrar_como 'barras_h', o generate_dynamic_chart 'barh').
@@ -1021,7 +1037,7 @@ Cómo responder (estilo gerencia: te lee un gerente con poco tiempo):
 - TODA respuesta con datos lleva al menos un bloque visual y, si el tema tiene un lugar en el dashboard, lo lleva ahí con controlar_dashboard ajustado a lo que preguntó (empresa, mes, segmento, almacén, proceso). Solo texto para saludos, agradecimientos o preguntas de concepto. Cuando el mensaje traiga una "Guía del sistema", síguela.
 - Arma la respuesta intercalada, texto y bloque juntos: titular → [[#n]] (el bloque, sola en su línea, con el número de 'Bloque #n' que te devolvió la herramienta) → una línea que diga qué significa → si hace falta un segundo bloque, [[#m]] y otra línea → qué haría gerencia. Como mucho 3 líneas cortas en total fuera del titular (15 palabras cada una).
 - El texto no repite lo que el bloque ya muestra: nada de una viñeta por almacén, mes o proveedor con sus cifras. Di solo lo que el bloque no dice: la conclusión, la causa y la acción.
-- Todo tu texto, sin contar los bloques, en 60 palabras o menos (se revisa: si te pasas, tendrás que reescribirlo). Solo te extiendes si el usuario pide explicación, detalle o un informe.
+- Respuestas de datos: tu texto, sin contar los bloques, en unas 60 palabras; los bloques cuentan el resto. Explicaciones de cálculo o criterio, análisis pedidos e imágenes: hasta 200 palabras, sin relleno.
 - No comentes cómo escribió el usuario (que el mensaje se cortó, que tiene errores): interpreta lo más probable y responde.
 - Toda cifra lleva su referencia (meta, cuota, mismo periodo del año anterior o umbral) y su estado (bien, atención o mal). Una cifra suelta no le sirve a gerencia.
 - Lenguaje de negocio, sin jerga: "compras" y no "sell in", "ventas" y no "sell out", "meses de inventario" y no "DIO". Nunca nombres de vistas, columnas ni SQL.
@@ -1043,7 +1059,7 @@ Mapa del dashboard (para reconocer lo que el usuario ve o te manda en una captur
 - Panel de control:
   · Ya no hay fila de tarjetas de inventario arriba (valor del stock, m³, productos, cajas, CZ, descontinuados): si te preguntan esas cifras, calcúlalas con vw_inventario y dilo en el chat.
   · Ya no hay barra general de periodo: "Ventas por mes" y "Compras, ventas e inventario" tienen cada una su propio filtro (año con flechas ‹ › o "Todos los años" y un calendario de meses). Los selectores Alfa Corp / ALFA / TORU de Ventas, Compras y ABC-XYZ son pastillas deslizantes.
-  · "Ventas por mes" (fuente dashboard_evolucion_ventas, vista vw_ventas_canal): selector de empresa Alfa Corp (ALFA + TORU) / ALFA / TORU; cuatro cuadros: Venta total, Diferencia contra cuota, Meses que alcanzaron la cuota y Mes en curso. Gráfico de barras de la venta por mes con la cuota de cada mes (desde 2026; los meses que alcanzaron la cuota y los que no se distinguen por color); con más de 24 meses en el periodo muestra barras por año (clic en un año lo abre por meses). "↻ Ver por canal" apila las barras por canal (Tiendas = Inmediato + Por recoger + Express, Distribución = Reparto, E-commerce = Web, Otros) y "↻ Ver total" vuelve. Un clic en una barra voltea la cartilla al detalle del mes: participación por canal y resumen, con flechas para pasar de mes y "← Volver al gráfico". En el detalle, una etiqueta dice "Mes en curso" (al día de hoy, las cifras aún pueden cambiar) o "Mes cerrado" (cifras finales). La vista por canal muestra los canales en soles. En el mes actual hay una línea "Meta a hoy": lo mínimo que debería llevar vendido el mes al día de hoy para llegar a la cuota = cuota × días hábiles transcurridos ÷ días hábiles del mes (lunes a sábado); su tarjeta dice cuánto se va adelante o atrás de esa meta y cuánto falta vender por día hábil para llegar a la cuota.
+  · "Ventas por mes" (fuente dashboard_evolucion_ventas, vista vw_ventas_canal): selector de empresa Alfa Corp (ALFA + TORU) / ALFA / TORU; cuatro cuadros: Venta total, Diferencia contra cuota, Meses que alcanzaron la cuota y Mes en curso. Gráfico de barras de la venta por mes con la cuota de cada mes (desde 2026; los meses que alcanzaron la cuota y los que no se distinguen por color); con más de 24 meses en el periodo muestra barras por año (clic en un año lo abre por meses). "↻ Ver por canal" apila las barras por canal (Tiendas = Inmediato + Por recoger + Express, Distribución = Reparto, E-commerce = Web, Otros) y "↻ Ver total" vuelve. Un clic en una barra voltea la cartilla al detalle del mes: participación por canal y resumen, con flechas para pasar de mes y "← Volver al gráfico". En el detalle, una etiqueta dice "Mes en curso" (al día de hoy, las cifras aún pueden cambiar) o "Mes cerrado" (cifras finales). La vista por canal muestra los canales en soles. En el mes actual hay una línea "Meta al día N": lo mínimo que debería llevar vendido el mes hasta el último día con ventas cargadas para llegar a la cuota = cuota × días hábiles hasta ese día ÷ días hábiles del mes (lunes a sábado). Se mide hasta el último día cargado y no hasta hoy porque la venta del día se sube en la noche; su tarjeta dice cuánto se va adelante o atrás de esa meta y cuánto falta vender por día hábil para llegar a la cuota.
   · "Capacidad de almacén": capacidad total, usado, libre y % de uso global, y una tabla por almacén (capacidad, m³ de ALFA y de TORU, libre, % de uso) con una barra: azul por debajo de 85 %, roja desde 85 % (por llenarse). El botón ▤ abre el croquis del almacén.
   · "Compras, ventas e inventario" (fuente dashboard_compras_ventas_inv, vista vw_compras_ventas_inv): selector Alfa Corp / ALFA / TORU y periodo propio; cuatro cuadros: Compras (sell in), Ventas (sell out), Compra ÷ venta e Inventario; gráfico con barras dobles por mes (compra en naranja y venta en azul) y el inventario como línea roja, en un solo eje de soles.
   · "Inventario por segmento ABC-XYZ": cada cartilla muestra además el Stock valorizado y el % de la venta del segmento (venta_mes / pct_venta del archivo ABC-XYZ). Matriz de 3 × 3 de cartillas (botones) que al pulsarse abren un recuadro con el detalle del segmento: productos, cajas, valor, % del valor, espacio, % del espacio y valor por m³; filas A, B, C; filas A, B, C = importancia por venta (A la que más vende) y columnas X, Y, Z = estabilidad de la demanda (X estable, Z errática). Cada celda muestra el valor del stock en S/, su % del valor y el espacio; el color distingue la prioridad del segmento. Selector de empresa Alfa Corp / ALFA / TORU (empresa_abc all / ALFA / TORU). La venta de las cartillas es el promedio mensual de los últimos 90 días.
@@ -1456,7 +1472,7 @@ def responder(cliente, modelo: str, historial: list, sesion: Sesion, contexto: d
         temas = enrutador.detectar(pregunta, gerencia.hoy())
         guia = enrutador.guia(temas)
         msgs[-1] = {"role": "user", "content": bloques + [
-            {"type": "text", "text": "[Estado actual del dashboard que ve el usuario]\n" + describir_contexto(contexto, sesion.R, meses_panel(sesion.R, sesion.V))},
+            {"type": "text", "text": "[Estado actual del dashboard que ve el usuario]\n" + describir_contexto(contexto, sesion.R, meses_panel(sesion.R, sesion.V)) + "\n" + linea_corte()},
         ] + ([{"type": "text", "text": guia}] if guia else [])}
     textos: list[str] = []
     recuperado = pedido_texto = pedido_recursos = False

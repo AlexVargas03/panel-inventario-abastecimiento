@@ -34,6 +34,36 @@ def hoy() -> date:
     return datetime.now(LIMA).date()
 
 
+# Último día con ventas cargadas. La venta de un día se sube en la noche, así que hoy todavía
+# no tiene venta: el mes en curso se mide hasta este día, no hasta hoy. Lo fija la app con
+# fijar_corte_ventas(); sin ese dato se usa ayer.
+_CORTE_VENTAS: date | None = None
+HORA_CIERRE = 18      # un archivo de ventas subido desde esta hora (Lima) ya trae la venta de ese día
+
+
+def corte_desde_modificado(modificado: str | None) -> date | None:
+    """Fecha de corte según la última modificación del archivo de ventas (ISO, UTC en SharePoint)."""
+    if not modificado:
+        return None
+    try:
+        m = datetime.fromisoformat(str(modificado).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    m = (m if m.tzinfo else m.replace(tzinfo=timezone.utc)).astimezone(LIMA)
+    return m.date() if m.hour >= HORA_CIERRE else m.date() - timedelta(days=1)
+
+
+def fijar_corte_ventas(corte: date | None) -> None:
+    global _CORTE_VENTAS
+    _CORTE_VENTAS = corte
+
+
+def corte_ventas() -> date:
+    """Último día con ventas cargadas; nunca después de ayer si el archivo no dice otra cosa."""
+    h = hoy()
+    return min(_CORTE_VENTAS, h) if _CORTE_VENTAS else h - timedelta(days=1)
+
+
 def habiles(anio: int, mes: int, hasta: int | None = None) -> tuple[int, int]:
     """Días hábiles (lunes a sábado) transcurridos hasta el día `hasta` (incluido) y del mes completo."""
     n = calendar.monthrange(anio, mes)[1]
@@ -98,13 +128,19 @@ def _venta_mes(V, R, emp, h):
     if not _ok(cuota) or not cuota:
         return None
     if mes == actual:
-        trans, total = habiles(h.year, h.month, h.day)
+        # se mide hasta el último día con ventas cargadas (normalmente ayer), no hasta hoy
+        c = corte_ventas()
+        dia = c.day if (c.year, c.month) == (h.year, h.month) else 0
+        trans, total = habiles(h.year, h.month, dia)
+        if not trans:
+            return None
         meta = cuota * trans / total if total else cuota
         falta = max(0.0, cuota - venta)
-        resto = max(1, total - trans)
-        nota = f"Vendido {soles(venta)} de {soles(cuota)}" + (f" · faltan {soles(falta / resto)} por día hábil" if falta else " · cuota alcanzada")
-        return {"clave": "venta_mes", "indicador": f"Venta de {mes_txt(mes)} vs meta a hoy", "valor": venta / meta if meta else None,
-                "fmt": "pct", "ref": f"meta a hoy {soles(meta)} (día hábil {trans} de {total})", "nota": nota}
+        resto = max(1, total - trans)                # días hábiles que quedan, contando hoy
+        nota = f"Vendido {soles(venta)} de {soles(cuota)} al {dia} {MES_CORTO[h.month - 1]}" + \
+            (f" · faltan {soles(falta / resto)} por día hábil ({resto} días)" if falta else " · cuota alcanzada")
+        return {"clave": "venta_mes", "indicador": f"Venta de {mes_txt(mes)} vs meta al {dia} {MES_CORTO[h.month - 1]}", "valor": venta / meta if meta else None,
+                "fmt": "pct", "ref": f"meta al {dia} {MES_CORTO[h.month - 1]}: {soles(meta)} (día hábil {trans} de {total})", "nota": nota}
     return {"clave": "venta_mes", "indicador": f"Venta de {mes_txt(mes)} vs cuota", "valor": venta / cuota, "fmt": "pct",
             "ref": f"cuota {soles(cuota)}", "nota": f"Vendido {soles(venta)} (mes cerrado)"}
 

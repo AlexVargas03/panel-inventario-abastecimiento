@@ -110,6 +110,11 @@
     var m = ev.data;
     if (!m || m.type !== 'streamlit:render' || !m.args) return;
     var a = m.args;
+    // Último día con ventas cargadas: el mes en curso se mide hasta ahí (vcNow de la página)
+    if (a.corte_ventas && a.corte_ventas !== window.CORTE_VENTAS) {
+      window.CORTE_VENTAS = a.corte_ventas;
+      if (raw) window.dash.refresh();
+    }
     if (a.version && a.version !== version && a.version !== cargando) {
       cargando = a.version;
       if (a.data_url) {

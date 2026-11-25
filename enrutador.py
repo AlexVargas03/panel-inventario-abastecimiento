@@ -162,9 +162,11 @@ def principal(temas: list[dict]) -> dict | None:
 def guia(temas: list[dict]) -> str | None:
     if not temas:
         return None
-    lineas = ["[Guía del sistema para este mensaje; el usuario no la ve. Si el mensaje no pide datos, ignórala.]",
-              "- Muestra lo que respondas con bloques, no solo con texto: " +
-              "; ".join(f"{t['tema']} → {t['visual']}" for t in temas if t["visual"]) + "."]
+    lineas = ["[Guía del sistema para este mensaje; el usuario no la ve. Es orientativa: tú decides según lo que pide.]",
+              "- Si pide cifras, el estado o resultados, muéstralos con un bloque: " +
+              "; ".join(f"{t['tema']} → {t['visual']}" for t in temas if t["visual"]) + ". "
+              "Si es una duda de cómo se calcula algo, qué considera o por qué sale así, explícalo con texto, la fórmula y un ejemplo "
+              "con sus números reales; un bloque solo si de verdad aclara algo."]
     p = principal(temas)
     if p:
         lineas.append(f"- Lleva el dashboard a lo que preguntó ({p['lugar']}) con controlar_dashboard, por ejemplo "
@@ -193,7 +195,7 @@ def _ya_esta(control: dict, contexto: dict | None) -> bool:
 
 
 PIDE_DETALLE = r"explica|detall|a fondo|por que|porque|analiza|informe|reporte|paso a paso|todo sobre"
-TOPE_PALABRAS, TOPE_DETALLE = 75, 160
+TOPE_PALABRAS, TOPE_DETALLE = 110, 220
 
 
 def palabras(texto: str) -> int:
@@ -206,19 +208,21 @@ def faltantes(temas: list[dict], bloques: list[dict], accion: dict, contexto: di
     rehacer=True: el texto anterior se descarta y escribe uno nuevo, armado junto a los bloques
     (falta un bloque visual o el texto es demasiado largo). Si solo faltó mover el dashboard, se
     conserva el texto y solo se pide la herramienta."""
+    # Si mostrar un bloque o explicar con texto lo decide el modelo (ver el prompt): forzarlo por palabras
+    # clave descartaba buenas explicaciones ("¿la meta considera el día de hoy?" acababa en una comparativa
+    # sin texto). Aquí solo se corrige lo que es claramente un descuido: una respuesta de datos con bloques
+    # que se pasa mucho de largo, o que no llevó el dashboard a lo que se preguntó.
     if not temas:
         return None
     rehacer, falta = [], []
-    if not any(b.get("type") in VISUALES for b in bloques or []):
-        rehacer.append("no mostraste ningún bloque visual: muestra las cifras clave con " +
-                       " o ".join(t["visual"] for t in temas[:2] if t["visual"]))
+    con_bloques = any(b.get("type") in VISUALES for b in bloques or [])
     tope = TOPE_DETALLE if re.search(PIDE_DETALLE, _plano(pregunta)) else TOPE_PALABRAS
     n = palabras(texto)
-    if n > tope:
+    if con_bloques and n > tope:
         rehacer.append(f"tu texto es demasiado largo ({n} palabras; máximo {tope}): no recites lo que ya muestran los bloques")
     p = principal(temas)
     movio = any(k for k in (accion or {}) if k not in ("descripcion",))
-    if p and not movio and not _ya_esta(p["control"], contexto):
+    if con_bloques and p and not movio and not _ya_esta(p["control"], contexto):
         falta.append(f"no llevaste el dashboard a lo que preguntó: usa controlar_dashboard con "
                      f"{json.dumps(p['control'], ensure_ascii=False)} (ajustado a lo que pide)")
     if not rehacer and not falta:

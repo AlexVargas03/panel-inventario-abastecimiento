@@ -13,6 +13,7 @@ import streamlit as st
 
 import agent
 import calc
+import gerencia
 import panel_component
 import sharepoint
 
@@ -161,6 +162,14 @@ with st.sidebar:
     st.caption("Filas cargadas: " + " · ".join(f"{c} {len(subidos.get(c, ds.get(c, []))):,}" for c in ETIQUETAS))
 ds.update(subidos)
 
+# Último día con ventas cargadas: sale de la hora en que se subió el archivo de ventas a SharePoint.
+# Sin ese dato (archivos de data/ o uno subido a mano) se usa ayer: la venta de hoy se sube en la noche.
+_mod_ventas = None
+if info_sp and not info_sp.get("fallo") and "ventas_canal" not in subidos:
+    _mod_ventas = info_sp.get("archivos", {}).get("ventas_canal", {}).get("modificado")
+gerencia.fijar_corte_ventas(gerencia.corte_desde_modificado(_mod_ventas))
+corte_ventas = gerencia.corte_ventas().isoformat()
+
 try:
     R = calcular(ds)
     archivo, version = datos_panel(ds)
@@ -264,7 +273,7 @@ evento = panel_component.mostrar(
     chat=ss["chat_vis"], insights=ss["insights"], ia_ok=bool(cliente), modelo=modelo if cliente else "",
     accion=ss["accion"], respondido=ss["respondido"], reiniciado=ss.pop("reiniciado", False),
     pedir_insights=bool(cliente) and not ss.get("insights_ia_ok"),
-    asistente=asistente_activo,
+    asistente=asistente_activo, corte_ventas=corte_ventas,
 )
 
 if evento and evento.get("id") not in ss["procesados"]:
