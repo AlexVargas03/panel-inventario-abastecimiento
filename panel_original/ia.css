@@ -400,7 +400,7 @@ body.ia-closed .ia-lat,body.ia-volando .ia-lat{opacity:0;pointer-events:none}
 /* ---------- Gestos ----------
    Cada propiedad lleva una cosa: scale = parpadeo/sorpresa, clip-path = párpados,
    translate = mirada, rotate (en la cabeza) = ladeo. Así se combinan sin pisarse. */
-.ia-cabeza i{translate:calc((var(--gx,0px) + var(--sx,0px)) * var(--k,1) + var(--ox,0px)) calc((var(--gy,0px) + var(--sy,0px)) * var(--k,1) + var(--oy,0px))}
+.ia-cabeza i{translate:calc((var(--gx,0px) + var(--sx,0px)) * var(--k,1) + var(--ox,0px) + var(--nx,0px)) calc((var(--gy,0px) + var(--sy,0px)) * var(--k,1) + var(--oy,0px))}
 .ia-grande{--k:1.7}
 .ia-cara,.ia-cabeza{transition:rotate .3s var(--ia-ease),transform .16s var(--ia-ease)}
 
@@ -635,10 +635,6 @@ body.ia-volando .ia-saludo #ia-cab{visibility:visible}
 body.ia-toru{--ia-red:#1c1c1e;--ia-red2:#3a3a3d;--ia-soft:#f1f1f2;--ia-rgb:28,28,30;--ia-claro:#3d3d41;--ia-oscuro:#0b0b0c;
   --ia-cara1:#f0f0f2;--ia-cara2:#d6d6db;--ia-brillo:#eeeef1;--ia-brillo-rgb:238,238,241}
 
-  cursor:pointer;color:#7a7873;background:transparent;transition:background-color .2s ease,color .2s ease,box-shadow .2s ease,transform .16s var(--ia-ease)}
-  color:#fff;background:rgba(255,255,255,.14);box-shadow:inset 0 0 0 1px rgba(255,255,255,.22);display:inline-flex;align-items:center;gap:.3rem;
-  transition:background-color .18s ease,transform .16s var(--ia-ease)}
-
 /* ---------- Más gestos ---------- */
 /* Cachetes: aparecen cuando está tierna o muy contenta */
 .ia-mej{position:absolute;top:60%;width:17%;height:9%;border-radius:50%;background:rgba(255,110,130,.55);opacity:0;pointer-events:none;
@@ -692,8 +688,15 @@ body.ia-salta :is(.ia-cara,.ia-cabeza){animation:ia-salto .55s var(--ia-ease)}
 .ia-cabeza[role="button"]{cursor:pointer}
 .ia-cabeza[role="button"]:focus-visible{outline:2px solid #fff;outline-offset:2px}
 .ia-grande[role="button"]:focus-visible{outline-color:var(--ia-red)}
-.ia-sacude{animation:ia-sacude .58s cubic-bezier(.36,.07,.19,.97)}
-@keyframes ia-sacude{10%,90%{translate:-1px 0}20%,80%{translate:3px 0}30%,50%,70%{translate:-6px 0}40%,60%{translate:6px 0}}
+/* Niega con la cabeza al cambiar de marca: la esfera no se mueve; los ojos (y los cachetes) van de un
+   lado a otro, como si volteara la cara a la izquierda y a la derecha, y se calman al final. */
+.ia-cabeza{--giro:6px}
+.ia-cabeza.ia-grande{--giro:15px}
+@property --nx{syntax:'<length>';inherits:true;initial-value:0px}
+.ia-cabeza .ia-mej{translate:var(--nx,0px) 0}
+.ia-sacude{animation:ia-niega .9s cubic-bezier(.45,0,.55,1)}
+/* --nx se suma a la mirada de los ojos: voltea la cara sin perder hacia dónde miraba */
+@keyframes ia-niega{0%,100%{--nx:0px}15%{--nx:calc(var(--giro) * -1)}38%{--nx:var(--giro)}60%{--nx:calc(var(--giro) * -.85)}80%{--nx:calc(var(--giro) * .5)}92%{--nx:calc(var(--giro) * -.15)}}
 @media (hover:hover) and (pointer:fine){.ia-cabeza[role="button"]:hover{scale:1.05}}
 .ia-cabeza[role="button"]{transition:scale .18s var(--ia-ease),rotate .3s var(--ia-ease)}
 @media (prefers-reduced-motion:reduce){.ia-sacude{animation:none}}

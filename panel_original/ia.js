@@ -160,8 +160,8 @@
   function tocar(el) {
     if (contarToque()) return;      // si la pican demasiado se molesta y no cambia de color
     el.classList.remove('ia-sacude'); void el.offsetWidth; el.classList.add('ia-sacude');
-    setTimeout(function () { ponerMarca(marca === 'toru' ? 'alfa' : 'toru'); }, 220);   // cambia a mitad de la sacudida
-    setTimeout(function () { el.classList.remove('ia-sacude'); }, 600);
+    setTimeout(function () { ponerMarca(marca === 'toru' ? 'alfa' : 'toru'); }, 300);   // cambia de color mientras voltea la cara
+    setTimeout(function () { el.classList.remove('ia-sacude'); }, 940);
   }
   function tocable(el) {
     if (!el) return;
