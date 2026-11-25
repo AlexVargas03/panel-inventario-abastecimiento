@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 import math
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 import re
 import unicodedata
 
@@ -596,14 +596,14 @@ HERRAMIENTAS = [
             "titulo": {"type": "string", "description": "Ej: 'Desempeño de proveedores · 3er trimestre 2026'"},
             "subtitulo": {"type": "string", "description": "Periodo y alcance: 'Sell out ene–sep 2026 · ALFA y TORU'"},
             "resumen": {"type": "array", "maxItems": 5, "items": {"type": "string"},
-                        "description": "Resumen ejecutivo: 3 a 5 conclusiones, cada una con su cifra clave"},
+                        "description": "Resumen ejecutivo: 3 a 5 conclusiones; la primera responde la pregunta. Cada una con su cifra y contra qué se compara"},
             "secciones": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"type": "object", "properties": {
                 "titulo": {"type": "string"},
-                "texto": {"type": "string", "description": "Hallazgo y su porqué, en 2 a 4 viñetas ('- ...')"},
+                "texto": {"type": "string", "description": "2 a 4 viñetas ('- ...'): qué pasó con su cifra, por qué (o hipótesis si no está en los datos), a qué afecta y cuánto pesa"},
                 "bloques": {"type": "array", "maxItems": 3, "items": {"type": "integer"}, "description": "Números de bloque que la sostienen"}},
                 "required": ["titulo", "texto"]}},
             "recomendaciones": {"type": "array", "maxItems": 6, "items": {"type": "string"},
-                                "description": "Acciones concretas, cada una con su efecto esperado"},
+                                "description": "Acciones concretas: qué hacer · quién o qué área · efecto esperado con cifra"},
             "nota": {"type": "string", "description": "Fuentes, periodo y limitaciones de los datos"}},
             "required": ["titulo", "resumen", "secciones"]},
     },
@@ -708,8 +708,9 @@ def bloque_informe(a: dict, por_numero: dict) -> tuple[dict, list]:
         secciones.append({"titulo": _txt(sec["titulo"], 90), "texto": _txt(sec.get("texto"), 1500), "bloques": bl})
     if not secciones:
         raise ValueError("el informe necesita al menos una sección con título.")
-    hoy = date.today()
-    inf = {"type": "informe", "titulo": _txt(a["titulo"], 110), "subtitulo": _txt(a.get("subtitulo"), 140),
+    ahora = datetime.now(timezone(timedelta(hours=-5)))   # hora de Lima (el servidor puede estar en UTC)
+    hoy = ahora.date()
+    inf = {"type": "informe", "codigo": f"INF-{ahora:%Y%m%d-%H%M}", "titulo": _txt(a["titulo"], 110), "subtitulo": _txt(a.get("subtitulo"), 140),
            "fecha": f"{hoy.day} de {MESES_ES[hoy.month - 1]} de {hoy.year}",
            "resumen": [_txt(x, 300) for x in (a.get("resumen") or [])[:5] if _txt(x)],
            "secciones": secciones,
@@ -966,7 +967,14 @@ Cómo trabajar:
 - Si una tendencia se entiende mejor en el dashboard, generate_dynamic_chart admite destino 'dashboard', pero úsalo solo si el usuario pide verlo ahí.
 - Informes en PDF: si el usuario pide un informe, reporte, análisis completo o algo para descargar o presentar:
   1. Consulta de 4 a 8 ángulos que cubran el tema (evolución, ranking, comparativa, alertas…), mostrando cada uno como gráfico, comparativa, KPIs, alertas o tabla. No uses mostrar_como 'ninguno': el informe solo puede incluir bloques que mostraste. Puedes pedir varias herramientas a la vez en un mismo paso.
-  2. Llama UNA vez a generar_informe: resumen ejecutivo con 3 a 5 conclusiones y sus cifras, una sección por hallazgo (texto con el porqué y los números de bloque que la sostienen) y recomendaciones con su efecto esperado. En 'nota', di el periodo, las fuentes y lo que los datos no cubren.
+     · Busca contexto, no solo la foto del día: compara contra el periodo anterior, el promedio o la meta, y abre el dato por la dimensión que explica el resultado (proveedor, almacén, línea, causa).
+     · Tablas del informe: de 4 a 6 columnas, solo las que se comentan, con nombres claros (producto, no codigo_articulo_largo) y ordenadas por lo que importa (la mayor diferencia o el mayor monto primero). Si hay más detalle, que vaya en otra tabla, no en columnas extra.
+  2. Llama UNA vez a generar_informe, escrito como un analista para su gerente:
+     · Resumen ejecutivo: 3 a 5 conclusiones. La primera responde la pregunta en una frase. Cada una lleva su cifra y contra qué se compara (vs mes anterior, vs meta, % del total); nada de describir lo que ya dice un gráfico.
+     · Una sección por hallazgo, ordenadas de lo más a lo menos importante. Texto en 2 a 4 viñetas: qué pasó (con cifra), por qué pasó o qué lo explica, a quién o qué afecta y cuánto pesa en soles o unidades. Si la causa no está en los datos, dilo como hipótesis, no como hecho.
+     · Recomendaciones: acciones concretas con responsable o área, prioridad y efecto esperado con cifra ('Recontar los 3 SKUs de Old Spice esta semana · Almacén · evita S/ 30 de ajuste').
+     · En 'nota', di el periodo, las fuentes y lo que los datos no cubren.
+     · Fechas en formato formal en todo el informe: '24 de noviembre de 2026', 'enero a septiembre de 2026'; nunca '24 nov 2026' ni '2026-11'.
   3. En el chat responde solo con 1 o 2 líneas: que el informe está listo y su conclusión principal.
 - No amontones: como mucho dos bloques de datos por respuesta, uno por idea. Nunca dos bloques con la misma información (por ejemplo, un gráfico de los 4 almacenes y además alertas de esos mismos 4): elige el que mejor lo muestre.
 - Las cifras de cualquier bloque salen de otra herramienta en este mismo turno; si no las tienes, consúltalas antes.
