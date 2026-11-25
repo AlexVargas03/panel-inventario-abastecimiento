@@ -295,11 +295,19 @@
   }
   if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) setTimeout(microsacada, 1200);
 
-  /* Enojo: si la insultan o le pican la cabeza sin parar. Primero se molesta (¬¬), luego se enoja. */
-  var INSULTO = /\b(tont[oa]|idiota|est[uú]pid[oa]|in[uú]til|no sirves|basura|porquer[ií]a|mierda|maldit[oa]|imb[eé]cil|bruta|burra|pesad[oa])\b/i;
+  /* Enojo por toques: si le pican la cabeza sin parar, primero se molesta (¬¬) y luego se enoja.
+   * El enojo por lo que le escriben no se decide aquí: lo interpreta el bot (ver sentir()). */
   function enojarse(fuerte) {
     gesto(fuerte ? 'enojo' : 'molesta', fuerte ? 2200 : 1500);
     if (fuerte) animarCabeza('ia-bufa', 520);
+  }
+  /* La emoción que eligió el bot para su respuesta ([ánimo: X] en agent.py) se queda unos segundos en su cara */
+  var SENTIR = { feliz: ['feliz', 2800, 'ia-salta'], tierno: ['tierno', 3000], sorpresa: ['sorpresa', 2200], curiosa: ['curiosa', 2400],
+    triste: ['triste', 3400], molesta: ['molesta', 3400], enojo: ['enojo', 3400, 'ia-bufa'], neutral: ['feliz', 1500, 'ia-salta'] };
+  function sentir(animo) {
+    var s = SENTIR[animo] || SENTIR.neutral;
+    gesto(s[0], s[1]);
+    if (s[2]) animarCabeza(s[2], s[2] === 'ia-bufa' ? 520 : 550);
   }
   var toques = [];
   function contarToque() {
@@ -401,10 +409,8 @@
     if ((!t && !adjuntos.length) || st.busy) return;
     var imgs = adjuntos.slice();
     if (!t) t = '¿Me explicas lo que se ve en esta imagen del panel?';
-    // Reacción inmediata a lo que mandas: se enoja si la insultan, se enternece si le agradeces; si no, asiente
-    if (INSULTO.test(t)) enojarse(true);
-    else if (/gracias|genial|excelente|buen[ií]sim|te quiero|crack|eres la mejor/i.test(t)) gesto('tierno', 1600);
-    else animarCabeza('ia-asiente', 700);
+    // Al enviar solo asiente; la emoción la decide el bot al leer el mensaje ([ánimo: X]) y llega con su respuesta
+    animarCabeza('ia-asiente', 700);
     var subir = st.chat.length ? null : medir($('#ia-hcab'));
     if (!st.iaOk) { st.error = 'El asistente no está configurado: falta ANTHROPIC_API_KEY en los Secrets de la app.'; pintar(true); return; }
     txt.value = ''; txt.style.height = 'auto';
@@ -2069,8 +2075,8 @@
     if (G.ocupado && !st.busy) {
       var ult = st.chat[st.chat.length - 1];
       var mal = st.error || (ult && ult.error);
-      gesto(mal ? 'triste' : 'feliz', st.error ? 2600 : 1800);
-      if (!mal) animarCabeza('ia-salta', 550);
+      if (mal) gesto('triste', 2600);
+      else sentir(ult && ult.animo);
     } else pintarGesto();
     G.ocupado = st.busy;
     if (abajo || forzar || st.busy) msgs.scrollTop = msgs.scrollHeight;

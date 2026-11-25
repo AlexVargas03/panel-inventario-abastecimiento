@@ -281,6 +281,7 @@ if evento and evento.get("id") not in ss["procesados"]:
             ss["chat_api"] = compactar(nuevo)
             acc = {k: v for k, v in res["accion"].items() if k != "descripcion"}
             ss["chat_vis"].append({"id": evento["id"], "role": "assistant", "texto": res["texto"], "bloques": res["bloques"],
+                                   "animo": res.get("animo", "neutral"),
                                    "accion_desc": res["accion"].get("descripcion", []), "consultas": res["consultas"]})
             if acc:
                 ss["accion"] = {"id": evento["id"], **acc}
